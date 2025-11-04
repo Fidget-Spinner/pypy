@@ -15,7 +15,7 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rjitlog import rjitlog as jl
 
 DEBUG_COUNTER = lltype.Struct('DEBUG_COUNTER',
-    # 'b'ridge, 'l'abel or # 'e'ntry point
+    # 'b'ridge, 'l'abel, # 'e'ntry point or 'j'ump
     ('i', lltype.Signed),      # first field, at offset 0
     ('type', lltype.Char),
     ('number', lltype.Signed)
@@ -366,33 +366,39 @@ class BaseAssembler(object):
     def _inject_debugging_code(self, looptoken, operations, tp, number):
         if self._debug or jl.jitlog_enabled():
             newoperations = []
-            self._append_debugging_code(newoperations, tp, number, None)
-            for op in operations:
+            self._append_debugging_code(newoperations, tp, number, None, use_token=False)
+            for idx, op in enumerate(operations):
+                if idx == len(operations) - 1:
+                    self._append_debugging_code(newoperations, 'j', number,
+                                                # If this jump belongs to an entry, use the entry ID
+                                                # else, use the token ID for a bridge.
+                                                looptoken, use_token=(tp != 'e'))
                 newoperations.append(op)
                 if op.getopnum() == rop.LABEL:
                     self._append_debugging_code(newoperations, 'l', number,
-                                                op.getdescr())
+                                                op.getdescr(), use_token=True)
             operations = newoperations
         return operations
 
-    def _append_debugging_code(self, operations, tp, number, token):
-        counter = self._register_counter(tp, number, token)
+    def _append_debugging_code(self, operations, tp, number, token, use_token):
+        counter = self._register_counter(tp, number, token, use_token)
         c_adr = ConstInt(rffi.cast(lltype.Signed, counter))
         operations.append(
             ResOperation(rop.INCREMENT_DEBUG_COUNTER, [c_adr]))
 
-    def _register_counter(self, tp, number, token):
+    def _register_counter(self, tp, number, token, use_token):
         # XXX the numbers here are ALMOST unique, but not quite, use a counter
         #     or something
         struct = lltype.malloc(DEBUG_COUNTER, flavor='raw',
                                track_allocation=False)
         struct.i = 0
         struct.type = tp
-        if tp == 'b' or tp == 'e':
-            struct.number = number
-        else:
+        if use_token:
             assert token
             struct.number = compute_unique_id(token)
+        else:
+            struct.number = number
+
         # YYY very minor leak -- we need the counters to stay alive
         # forever, just because we want to report them at the end
         # of the process
@@ -408,6 +414,8 @@ class BaseAssembler(object):
                 struct = self.loop_run_counters[i]
                 if struct.type == 'l':
                     prefix = 'TargetToken(%d)' % struct.number
+                elif struct.type == 'j':
+                    prefix = 'ExitOfToken(%d)' % struct.number                 
                 else:
                     num = struct.number
                     if num == -1:

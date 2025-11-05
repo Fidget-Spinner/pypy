@@ -15,7 +15,7 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rjitlog import rjitlog as jl
 
 DEBUG_COUNTER = lltype.Struct('DEBUG_COUNTER',
-    # 'b'ridge, 'l'abel, 'e'ntry point, 'j'ump, 'p'rior to label
+    # 'b'ridge, 'l'abel, 'e'ntry point, 'j'ump, 'p'rior to label, 'a' for after guard
     ('i', lltype.Signed),      # first field, at offset 0
     ('type', lltype.Char),
     ('number', lltype.Signed),
@@ -378,6 +378,10 @@ class BaseAssembler(object):
                     newoperations.append(op)
                     self._append_debugging_code(newoperations, 'l', number,
                                                 op.getdescr(), use_token=True)
+                elif op.is_guard():
+                    newoperations.append(op)
+                    self._append_debugging_code(newoperations, 'a', number,
+                                                op.getdescr(), use_token=True)                    
                 else:
                     newoperations.append(op)
             operations = newoperations
@@ -424,6 +428,8 @@ class BaseAssembler(object):
                     prefix = 'PriorToTargetToken(%d)' % struct.number
                 elif struct.type == 'j':
                     prefix = 'ExitOfToken(%d:%d)' % (struct.loop_id, struct.number,)
+                elif struct.type == 'a':
+                    prefix = 'AfterGuardAt(%d)' % struct.number
                 else:
                     num = struct.number
                     if num == -1:

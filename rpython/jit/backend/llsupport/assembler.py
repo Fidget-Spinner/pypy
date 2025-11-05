@@ -15,10 +15,11 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rjitlog import rjitlog as jl
 
 DEBUG_COUNTER = lltype.Struct('DEBUG_COUNTER',
-    # 'b'ridge, 'l'abel, # 'e'ntry point or 'j'ump
+    # 'b'ridge, 'l'abel, 'e'ntry point, 'j'ump, 'p'rior to label
     ('i', lltype.Signed),      # first field, at offset 0
     ('type', lltype.Char),
-    ('number', lltype.Signed)
+    ('number', lltype.Signed),
+    ('loop_id', lltype.Signed)    # the loop ID this belongs to.
 )
 
 class GuardToken(object):
@@ -370,13 +371,15 @@ class BaseAssembler(object):
             for idx, op in enumerate(operations):
                 if idx == len(operations) - 1:
                     self._append_debugging_code(newoperations, 'j', number,
-                                                # If this jump belongs to an entry, use the entry ID
-                                                # else, use the token ID for a bridge.
-                                                looptoken, use_token=(tp != 'e'))
-                newoperations.append(op)
+                                                looptoken, use_token=True)
                 if op.getopnum() == rop.LABEL:
+                    self._append_debugging_code(newoperations, 'p', number,
+                                                op.getdescr(), use_token=True)
+                    newoperations.append(op)
                     self._append_debugging_code(newoperations, 'l', number,
                                                 op.getdescr(), use_token=True)
+                else:
+                    newoperations.append(op)
             operations = newoperations
         return operations
 
@@ -396,8 +399,11 @@ class BaseAssembler(object):
         if use_token:
             assert token
             struct.number = compute_unique_id(token)
+            struct.loop_id = number
         else:
             struct.number = number
+            struct.loop_id = -42
+
 
         # YYY very minor leak -- we need the counters to stay alive
         # forever, just because we want to report them at the end
@@ -414,8 +420,10 @@ class BaseAssembler(object):
                 struct = self.loop_run_counters[i]
                 if struct.type == 'l':
                     prefix = 'TargetToken(%d)' % struct.number
+                elif struct.type == 'p':
+                    prefix = 'PriorToTargetToken(%d)' % struct.number
                 elif struct.type == 'j':
-                    prefix = 'ExitOfToken(%d)' % struct.number                 
+                    prefix = 'ExitOfToken(%d:%d)' % (struct.loop_id, struct.number,)
                 else:
                     num = struct.number
                     if num == -1:

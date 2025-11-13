@@ -1129,7 +1129,7 @@ class WarmRunnerDesc(object):
             key = jd, funcname
             if key not in closures:
                 closures[key] = make_closure(jd, 'set_param_' + funcname,
-                                             funcname == 'enable_opts')
+                                             funcname == 'enable_opts' or funcname == 'shapefile')
             op.opname = 'direct_call'
             op.args[:3] = [closures[key]]
 

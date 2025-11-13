@@ -290,6 +290,11 @@ class WarmEnterState(object):
                 d[name] = None
         self.enable_opts = d
 
+    def set_param_shapefile(self, value):
+        if value is None:
+            value = ''
+        self.shapfile = value
+
     def set_param_loop_longevity(self, value):
         # note: it's a global parameter, not a per-jitdriver one
         if (self.warmrunnerdesc is not None and

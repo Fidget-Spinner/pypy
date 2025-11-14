@@ -176,10 +176,16 @@ class RPythonAnnotator(object):
                 # XXX: Should use s_oldarg.contains(s_newarg) but that breaks
                 # PyPy translation
                 if annmodel.unionof(s_oldarg, s_newarg) != s_oldarg:
-                    raise annmodel.AnnotatorError(
-                        "Late-stage annotation is not allowed to modify the "
-                        "existing annotation for variable %s: %s" %
-                            (a, s_oldarg))
+                    from rpython.annotator.model import SomeString
+                    # If both sides are strings, it doesn't matter even if they
+                    # might be NULL, as what does a NULL string even mean?
+                    if type(s_oldarg) == SomeString and type(s_newarg) == SomeString:
+                        pass
+                    else:
+                        raise annmodel.AnnotatorError(
+                            "Late-stage annotation is not allowed to modify the "
+                            "existing annotation for variable %s: %s" %
+                                (a, s_oldarg))
 
         else:
             assert not self.frozen

@@ -228,6 +228,83 @@ class BaseJitCell(object):
 # ____________________________________________________________
 
 
+class ListOrDictOrStr:
+    LIST = 1
+    DICT = 2
+    STR = 3
+    NONE = 4
+    def __init__(self, ty, lst, dct, st):
+        self.ty = ty
+        self.lst = lst
+        self.dct = dct
+        self.st = st
+
+
+"""
+This is actually for copying into RPython.
+Simpler json decoder for the serialized format.
+"""
+class Decoder:
+    def __init__(self, s):
+        self.s = s
+        self.pos = 0
+
+    def parse_array(self):
+        assert self.s[self.pos] == '['
+        self.pos += 1
+        result = []
+        while self.s[self.pos] != ']':
+            result.append(self.parse_any())
+            if self.s[self.pos] != ']':
+                assert self.s[self.pos] == ','
+                self.pos += 1
+        assert self.s[self.pos] == ']'
+        self.pos += 1
+        return ListOrDictOrStr(ListOrDictOrStr.LIST, result, {}, "")
+
+    def parse_obj(self):
+        assert self.s[self.pos] == '{'
+        self.pos += 1
+        key = self.parse_str()
+        assert self.s[self.pos] == ':'
+        self.pos += 1
+        value = self.parse_any()
+        assert self.s[self.pos] == '}'
+        self.pos += 1
+        return ListOrDictOrStr(ListOrDictOrStr.DICT, [], {key : value}, "")
+
+    def parse_str(self):
+        assert self.s[self.pos] == '"'
+        self.pos += 1
+        start = curr = self.pos
+        while self.s[curr] != '"':
+            curr += 1
+        res = self.s[start:curr]
+        self.pos = curr
+        assert self.s[self.pos] == '"'
+        self.pos += 1
+        return ListOrDictOrStr(ListOrDictOrStr.STR, [], {}, res)
+
+    def parse_null(self):
+        assert self.s[self.pos] == 'n'
+        self.pos += len("null")
+        return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+
+    def parse_any(self):        
+        nxt = self.s[self.pos]
+        if nxt == '[':
+            return self.parse_array()
+        elif nxt == '{':
+            return self.parse_obj()
+        elif nxt == '"':
+            return self.parse_str()
+        elif nxt == 'n':
+            return self.parse_null()
+        print("Unrecognized token %d %s" % (self.pos, nxt))
+        assert False
+        # return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+
+
 class WarmEnterState(object):
 
     def __init__(self, warmrunnerdesc, jitdriver_sd):
@@ -245,7 +322,8 @@ class WarmEnterState(object):
         if self.warmrunnerdesc is not None:
             for name, default_value in PARAMETERS.items():
                 meth = getattr(self, 'set_param_' + name)
-                meth(default_value)
+                if name != "shapefile":
+                    meth(default_value)
 
     def _compute_threshold(self, threshold):
         return self.warmrunnerdesc.jitcounter.compute_threshold(threshold)
@@ -290,10 +368,20 @@ class WarmEnterState(object):
                 d[name] = None
         self.enable_opts = d
 
-    def set_param_shapefile(self, value):
-        if value is None:
-            value = ''
-        self.shapfile = value
+    def set_param_shapefile(self, shapefile):
+        import pypy.module._pypyjson.interp_decoder as mod     
+        import os
+        assert isinstance(shapefile, str)
+        f = os.open(shapefile, os.O_RDONLY, 0644)
+        contents = os.read(f, 160000)
+        try:
+            res = Decoder(contents).parse_array()
+        finally:
+            os.close(f)
+        self.shape_guide = res
+
+    def set_param_shape_guide(self, value):
+        return
 
     def set_param_loop_longevity(self, value):
         # note: it's a global parameter, not a per-jitdriver one

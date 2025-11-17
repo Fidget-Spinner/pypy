@@ -228,6 +228,9 @@ class BaseJitCell(object):
 # ____________________________________________________________
 
 
+from rpython.rlib import jit
+
+
 class ListOrDictOrStr:
     LIST = 1
     DICT = 2
@@ -239,6 +242,30 @@ class ListOrDictOrStr:
         self.dct = dct
         self.st = st
 
+    @jit.dont_look_inside
+    def find_loop_id(self, id_str):
+        if self.ty == ListOrDictOrStr.NONE:
+            return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+        elif self.ty == ListOrDictOrStr.STR:
+            return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+        elif self.ty == ListOrDictOrStr.DICT:
+            for key, value in self.dct.items():
+                assert key.ty == ListOrDictOrStr.STR
+                print(key.st)
+                if key.st[len("Trace:"):].strip() == id_str:
+                    return value
+                res = value.find_loop_id(id_str)
+                if res.ty != ListOrDictOrStr.NONE:
+                    return res
+            return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+        elif self.ty == ListOrDictOrStr.LIST:
+            for item in self.lst:
+                res = item.find_loop_id(id_str)
+                if res.ty != ListOrDictOrStr.NONE:
+                    return res
+            return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+        assert False
+                
 
 """
 This is actually for copying into RPython.
@@ -249,6 +276,7 @@ class Decoder:
         self.s = s
         self.pos = 0
 
+    @jit.dont_look_inside
     def parse_array(self):
         assert self.s[self.pos] == '['
         self.pos += 1
@@ -262,6 +290,7 @@ class Decoder:
         self.pos += 1
         return ListOrDictOrStr(ListOrDictOrStr.LIST, result, {}, "")
 
+    @jit.dont_look_inside
     def parse_obj(self):
         assert self.s[self.pos] == '{'
         self.pos += 1
@@ -273,6 +302,7 @@ class Decoder:
         self.pos += 1
         return ListOrDictOrStr(ListOrDictOrStr.DICT, [], {key : value}, "")
 
+    @jit.dont_look_inside
     def parse_str(self):
         assert self.s[self.pos] == '"'
         self.pos += 1
@@ -285,11 +315,13 @@ class Decoder:
         self.pos += 1
         return ListOrDictOrStr(ListOrDictOrStr.STR, [], {}, res)
 
+    @jit.dont_look_inside
     def parse_null(self):
         assert self.s[self.pos] == 'n'
         self.pos += len("null")
         return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
 
+    @jit.dont_look_inside
     def parse_any(self):        
         nxt = self.s[self.pos]
         if nxt == '[':
@@ -322,7 +354,9 @@ class WarmEnterState(object):
         if self.warmrunnerdesc is not None:
             for name, default_value in PARAMETERS.items():
                 meth = getattr(self, 'set_param_' + name)
-                if name != "shapefile":
+                if name == "shapefile":
+                    self.set_param_shape_guide(ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, ""))
+                else:
                     meth(default_value)
 
     def _compute_threshold(self, threshold):
@@ -368,6 +402,7 @@ class WarmEnterState(object):
                 d[name] = None
         self.enable_opts = d
 
+    @jit.dont_look_inside
     def set_param_shapefile(self, shapefile):
         import pypy.module._pypyjson.interp_decoder as mod     
         import os

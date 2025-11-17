@@ -498,6 +498,9 @@ class TargetToken(AbstractDescr):
     def repr_of_descr(self):
         return 'TargetToken(%d)' % compute_unique_id(self)
 
+from rpython.rlib import jit
+
+
 class TreeLoop(object):
     inputargs = None
     operations = None
@@ -548,6 +551,51 @@ class TreeLoop(object):
         "NOT_RPYTHON"
         from rpython.jit.metainterp.graphpage import display_procedures
         display_procedures([self], errmsg)
+
+    @jit.dont_look_inside
+    def check_if_trace_follows_guide(self, warmstate):
+        from rpython.jit.metainterp.jitexc import NotConformToGuide
+        from rpython.jit.metainterp.warmstate import ListOrDictOrStr
+        shape_guide = warmstate.shape_guide
+        if shape_guide.ty == ListOrDictOrStr.NONE:
+            return
+        loop_name = self.name[len("Loop #"):].strip()
+        print("Checking loop %s" % loop_name)
+        assert loop_name != ""
+        # Find the matching loop first
+        matching_root_guards = shape_guide.find_loop_id(loop_name)
+        # Cannot find loop, don't bother guiding it.
+        if matching_root_guards.ty == ListOrDictOrStr.NONE:
+            return
+        print("Found loop %s" % loop_name)
+        assert matching_root_guards.ty == ListOrDictOrStr.LIST
+        if len(matching_root_guards.lst) == 0:
+            return        
+        # find all guards in operations
+        current_guard = 0
+        guards = []
+        for op in self.operations:
+            if op.is_guard():
+                guards.append(op)
+        for guard_op_bridge_pair in matching_root_guards.lst:
+            assert guard_op_bridge_pair.ty == ListOrDictOrStr.DICT
+            for guard_op, bridge in guard_op_bridge_pair.dct.items():
+                assert guard_op.ty == ListOrDictOrStr.STR
+                guard_op_name = guard_op.st[len("Guard:"):].strip()
+                print(guard_op_name)
+                if current_guard > len(guards):
+                    # If our guards don't match up anymore,
+                    # just assume it conforms.
+                    return
+                if guards[current_guard].getopname().startswith(guard_op_name):
+                    current_guard += 1
+                else:
+                    print("NOT CONFOMRING %d %s %s" % (current_guard, guard_op_name, guards[current_guard].getopname()))
+                    raise NotConformToGuide()
+                # We hit an inverted bridge, we don't know what trace will happen next,
+                # so this guide is no longer useful.
+                if bridge.ty != ListOrDictOrStr.NONE:
+                    return
 
     def check_consistency(self, check_descr=True):     # for testing
         "NOT_RPYTHON"

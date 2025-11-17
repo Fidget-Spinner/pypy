@@ -73,6 +73,13 @@ class NotAProfitableLoop(JitException):
     def __str__(self):
         return 'NotAProfitableLoop()'
 
+class NotConformToGuide(JitException):
+    """
+    Raised when a trace does not conform to the guide given.
+    Uusally indicates a bad trace.
+    """
+    def __str__(self):
+        return 'NotConformToGuide()'
 
 def _get_standard_error(rtyper, Class):
     exdata = rtyper.exceptiondata

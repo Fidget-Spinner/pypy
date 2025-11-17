@@ -67,10 +67,13 @@ def apply_jit(translator, backend_name="auto", inline=False,
             raise Exception("found %d jitdriver(s) with 'get_unique_id=...' "
                             "specified but without 'is_recursive=True'" %
                             (invalid,))
+    from rpython.jit.metainterp.warmstate import ListOrDictOrStr
     for jd in warmrunnerdesc.jitdrivers_sd:
         jd.warmstate.set_param_inlining(inline)
         jd.warmstate.set_param_vec(vec)
         jd.warmstate.set_param_enable_opts(enable_opts)
+        jd.warmstate.set_param_shape_guide(ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, ""))
+      
     warmrunnerdesc.finish()
     translator.warmrunnerdesc = warmrunnerdesc    # for later debugging
 
@@ -480,7 +483,13 @@ class WarmRunnerDesc(object):
         assert CPUClass is not None
         self.opt = history.Options(**kwds)
         if no_stats:
-            stats = history.NoStats()
+            # KJ CHANGE:
+            # stats = history.NoStats()
+            stats = history.Stats(None)
+            if no_stats_history:
+                stats.set_history = lambda history: None
+                # ^^^ for test_jitiface.test_memmgr_release_all.  otherwise,
+                # stats.history attribute keeps the most recent loop alive            
         else:
             stats = history.Stats(None)
             if no_stats_history:

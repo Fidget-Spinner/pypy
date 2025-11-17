@@ -242,6 +242,11 @@ def compile_simple_loop(metainterp, greenkey, trace, runtime_args, enable_opts,
     loop.operations = [label] + ops
     if not we_are_translated():
         loop.check_consistency()
+    from rpython.jit.metainterp.jitexc import NotConformToGuide
+    try:
+        loop.check_if_trace_follows_guide(jitdriver_sd.warmstate)
+    except NotConformToGuide:
+        return None        
     jitcell_token.target_tokens = [target_token]
     send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          runtime_args, metainterp.box_names_memo)
@@ -332,6 +337,11 @@ def compile_loop(metainterp, greenkey, start, inputargs, jumpargs,
     jump_op = loop_ops[-1]
     if jump_op.getdescr() is loop_info.label_op.getdescr():
         assert jump_op.numargs() == loop_info.label_op.numargs()
+    from rpython.jit.metainterp.jitexc import NotConformToGuide
+    try:
+        loop.check_if_trace_follows_guide(warmstate)
+    except NotConformToGuide:
+        return None
     send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          inputargs, metainterp.box_names_memo)
     record_loop_or_bridge(metainterp_sd, loop)

@@ -589,13 +589,13 @@ class TreeLoop(object):
                     return
                 if guards[current_guard].getopname().startswith(guard_op_name):
                     current_guard += 1
+                    # We hit an inverted bridge, we don't know what trace will happen next,
+                    # so this guide is no longer useful.
+                    if bridge.ty != ListOrDictOrStr.NONE:
+                        return                    
                 else:
                     print("NOT CONFOMRING %d %s %s" % (current_guard, guard_op_name, guards[current_guard].getopname()))
                     raise NotConformToGuide()
-                # We hit an inverted bridge, we don't know what trace will happen next,
-                # so this guide is no longer useful.
-                if bridge.ty != ListOrDictOrStr.NONE:
-                    return
 
     def check_consistency(self, check_descr=True):     # for testing
         "NOT_RPYTHON"

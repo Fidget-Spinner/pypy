@@ -572,18 +572,23 @@ class TreeLoop(object):
         if len(matching_root_guards.lst) == 0:
             return        
         # find all guards in operations
-        current_guard = 0
         guards = []
         for op in self.operations:
             if op.is_guard():
                 guards.append(op)
+        current_guard = 0                
         for guard_op_bridge_pair in matching_root_guards.lst:
             assert guard_op_bridge_pair.ty == ListOrDictOrStr.DICT
             for guard_op, bridge in guard_op_bridge_pair.dct.items():
                 assert guard_op.ty == ListOrDictOrStr.STR
-                guard_op_name = guard_op.st[len("Guard:"):].strip()
+                inverted = False
+                if guard_op.st.startswith("GuardI"):
+                    inverted = True
+                    guard_op_name = guard_op.st[len("GuardI:"):].strip()
+                else:
+                    guard_op_name = guard_op.st[len("Guard:"):].strip()
                 print(guard_op_name)
-                if current_guard > len(guards):
+                if current_guard >= len(guards):
                     # If our guards don't match up anymore,
                     # just assume it conforms.
                     return
@@ -591,8 +596,8 @@ class TreeLoop(object):
                     current_guard += 1
                     # We hit an inverted bridge, we don't know what trace will happen next,
                     # so this guide is no longer useful.
-                    if bridge.ty != ListOrDictOrStr.NONE:
-                        return                    
+                    if inverted:
+                        return
                 else:
                     print("NOT CONFOMRING %d %s %s" % (current_guard, guard_op_name, guards[current_guard].getopname()))
                     raise NotConformToGuide()

@@ -507,6 +507,7 @@ class TreeLoop(object):
     call_pure_results = None
     logops = None
     quasi_immutable_deps = None
+    expected_inverted_guards = []
 
     def _token(*args):
         raise Exception("TreeLoop.token is killed")
@@ -558,9 +559,8 @@ class TreeLoop(object):
         from rpython.jit.metainterp.warmstate import ListOrDictOrStr
         shape_guide = warmstate.shape_guide
         if shape_guide.ty == ListOrDictOrStr.NONE:
-            return
+            return []
         loop_name = self.name[len("Loop #"):].strip()
-        print("Checking loop %s" % loop_name)
         assert loop_name != ""
         # Find the matching loop first
         matching_root_guards = shape_guide.find_loop_id(loop_name)
@@ -570,13 +570,14 @@ class TreeLoop(object):
         print("Found loop %s" % loop_name)
         assert matching_root_guards.ty == ListOrDictOrStr.LIST
         if len(matching_root_guards.lst) == 0:
-            return        
+            return     
         # find all guards in operations
         guards = []
-        for op in self.operations:
+        for idx, op in enumerate(self.operations):
             if op.is_guard():
-                guards.append(op)
+                guards.append((idx, op))
         current_guard = 0
+        inverted_guard_idxes = []
         BOOL_GUARDS = ["guard_true", "guard_false"]
         NONNULL_GUARDS = ["guard_nonnull", "guard_isnull"]
         INVERTIBLE_GUARDS = BOOL_GUARDS + NONNULL_GUARDS
@@ -585,23 +586,34 @@ class TreeLoop(object):
             for guard_op, bridge in guard_op_bridge_pair.dct.items():
                 assert guard_op.ty == ListOrDictOrStr.STR
                 inverted = False
+                previously_inverted = False
                 if guard_op.st.startswith("GuardI"):
                     inverted = True
                     guard_op_name = guard_op.st[len("GuardI:"):].strip()
+                elif guard_op.st.startswith("GuardP"):
+                    previously_inverted = True
+                    inverted = True
+                    guard_op_name = guard_op.st[len("GuardP:"):].strip()
                 else:
                     guard_op_name = guard_op.st[len("Guard:"):].strip()
                 if current_guard >= len(guards):
                     # If our guards don't match up anymore,
                     # just assume it conforms.
                     return
-                trace_guard_opname = guards[current_guard].getopname().strip()
+                trace_guard_opname = guards[current_guard][1].getopname().strip()
+                trace_guard_idx = guards[current_guard][0]
                 if trace_guard_opname.startswith(guard_op_name):
                     current_guard += 1
-                    # We hit an inverted bridge, we don't know what trace will happen next,
-                    # so this guide is no longer useful.
+                    # We hit an inverted bridge, that we did not previously see inverted.
                     if inverted:
-                        print("SUCCESFULLY INVERTED A GUARD")
-                        return
+                        inverted_guard_idxes.append(trace_guard_idx)
+                        print("SUCCESFULLY INVERTED A GUARD %d" % current_guard)
+                        if not previously_inverted:
+                            print("BAIL, newly seen inverted guard")
+                            # Remove the entire guide, as it's probably wrong now.
+                            warmstate.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+                            self.expected_inverted_guards = inverted_guard_idxes
+                            return 
                 else:
                     current_guard += 1
                     # it's an invertible guard, this means it's truly not conforming, so just bail.
@@ -609,8 +621,10 @@ class TreeLoop(object):
                         # Check the guards are the same guard type
                         if ((trace_guard_opname in BOOL_GUARDS and guard_op_name in BOOL_GUARDS)
                             or (trace_guard_opname in NONNULL_GUARDS and guard_op_name in NONNULL_GUARDS)):
-                            print("NOT CONFORMING %d %s %s" % (current_guard, guard_op_name, trace_guard_opname))
+                            # print("NOT CONFORMING %d %s %s" % (current_guard, guard_op_name, trace_guard_opname))
                             raise NotConformToGuide()
+        self.expected_inverted_guards = inverted_guard_idxes
+        return
 
     def check_consistency(self, check_descr=True):     # for testing
         "NOT_RPYTHON"

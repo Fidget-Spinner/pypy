@@ -95,11 +95,11 @@ class AbstractX86CPU(AbstractLLCPU):
         lines = machine_code_dump(data, addr, self.backend_name, label_list)
         print(''.join(lines))
 
-    def compile_bridge(self, faildescr, inputargs, operations,
+    def compile_bridge(self, expected_inverted_guards, faildescr, inputargs, operations,
                        original_loop_token, log=True, logger=None):
         clt = original_loop_token.compiled_loop_token
         clt.compiling_a_bridge()
-        return self.assembler.assemble_bridge(faildescr, inputargs, operations,
+        return self.assembler.assemble_bridge(expected_inverted_guards, faildescr, inputargs, operations,
                                               original_loop_token, log, logger)
 
     def cast_ptr_to_int(x):

@@ -348,7 +348,7 @@ class LLGraphCPU(model.AbstractCPU):
     def stitch_bridge(self, faildescr, target):
         faildescr._llgraph_bridge = target[0].lltrace
 
-    def compile_loop(self, inputargs, operations, looptoken, jd_id=0,
+    def compile_loop(self, expected_inverted_guards, inputargs, operations, looptoken, jd_id=0,
                      unique_id=0, log=True, name='', logger=None):
         clt = model.CompiledLoopToken(self, looptoken.number)
         looptoken.compiled_loop_token = clt

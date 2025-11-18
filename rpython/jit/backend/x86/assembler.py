@@ -498,7 +498,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
             self.wb_slowpath[withcards + 2 * withfloats] = rawstart
 
     @rgc.no_release_gil
-    def assemble_loop(self, jd_id, unique_id, logger, loopname, inputargs,
+    def assemble_loop(self, expected_inverted_guards, jd_id, unique_id, logger, loopname, inputargs,
                       operations, looptoken, log):
         '''adds the following attributes to looptoken:
                _ll_function_addr    (address of the generated func, as an int)
@@ -528,7 +528,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
 
         if log or self._debug:
             number = looptoken.number
-            operations = self._inject_debugging_code(looptoken, operations,
+            operations = self._inject_debugging_code(expected_inverted_guards, looptoken, operations,
                                                      'e', number, number)
 
         regalloc = RegAlloc(self, self.cpu.translate_support_code)
@@ -618,7 +618,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
                        size_excluding_failure_stuff - looppos, rawstart)
 
     @rgc.no_release_gil
-    def assemble_bridge(self, faildescr, inputargs, operations,
+    def assemble_bridge(self, expected_inverted_guards, faildescr, inputargs, operations,
                         original_loop_token, log, logger):
         if not we_are_translated():
             # Arguments should be unique
@@ -631,7 +631,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
         self.mc.force_frame_size(DEFAULT_FRAME_BYTES)
         descr_number = compute_unique_id(faildescr)
         if log or self._debug:
-            operations = self._inject_debugging_code(faildescr, operations,
+            operations = self._inject_debugging_code(expected_inverted_guards, faildescr, operations,
                                                      'b', descr_number, original_loop_token.number)
         arglocs = self.rebuild_faillocs_from_descr(faildescr, inputargs)
         regalloc = RegAlloc(self, self.cpu.translate_support_code)

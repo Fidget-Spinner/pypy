@@ -407,7 +407,7 @@ class WarmEnterState(object):
         import os
         assert isinstance(shapefile, str)
         f = os.open(shapefile, os.O_RDONLY, 0644)
-        contents = os.read(f, 160000)
+        contents = os.read(f, 160000000)
         try:
             res = Decoder(contents).parse_array()
         finally:

@@ -110,9 +110,9 @@ class AbstractLLCPU(AbstractCPU):
         if self.HAS_CODEMAP:
             self.codemap.finish_once()
 
-    def compile_loop(self, inputargs, operations, looptoken, jd_id=0,
+    def compile_loop(self, expected_inverted_guards, inputargs, operations, looptoken, jd_id=0,
                      unique_id=0, log=True, name='', logger=None):
-        return self.assembler.assemble_loop(jd_id, unique_id, logger, name,
+        return self.assembler.assemble_loop(expected_inverted_guards, jd_id, unique_id, logger, name,
                                             inputargs, operations,
                                             looptoken, log)
 

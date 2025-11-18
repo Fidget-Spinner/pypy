@@ -482,20 +482,22 @@ def propagate_original_jitcell_token(trace):
             token.original_jitcell_token = trace.original_jitcell_token
 
 
-def do_compile_loop(jd_id, unique_id, metainterp_sd, inputargs, operations,
+def do_compile_loop(expected_inverted_guards, jd_id, unique_id, metainterp_sd, inputargs, operations,
                     looptoken, log=True, name='', memo=None):
     # legacy
     metainterp_sd.logger_ops.log_loop(inputargs, operations, -2,
                                       'compiling', None, name, memo)
     _log = metainterp_sd.jitlog.log_trace(jl.MARK_TRACE_OPT, metainterp_sd, None)
     _log.write(inputargs, operations)
-    return metainterp_sd.cpu.compile_loop(inputargs,
+    return metainterp_sd.cpu.compile_loop(
+        expected_inverted_guards,
+                                            inputargs,
                                           operations, looptoken,
                                           jd_id=jd_id, unique_id=unique_id,
                                           log=log, name=name,
                                           logger=metainterp_sd.jitlog)
 
-def do_compile_bridge(metainterp_sd, faildescr, inputargs, operations,
+def do_compile_bridge(expected_inverted_guards, metainterp_sd, faildescr, inputargs, operations,
                       original_loop_token, log=True, memo=None):
     # legacy
     metainterp_sd.logger_ops.log_bridge(inputargs, operations, "compiling",
@@ -503,7 +505,7 @@ def do_compile_bridge(metainterp_sd, faildescr, inputargs, operations,
     _log = metainterp_sd.jitlog.log_trace(jl.MARK_TRACE_OPT, metainterp_sd, None)
     _log.write(inputargs, operations)
     assert isinstance(faildescr, AbstractFailDescr)
-    return metainterp_sd.cpu.compile_bridge(faildescr, inputargs, operations,
+    return metainterp_sd.cpu.compile_bridge(expected_inverted_guards, faildescr, inputargs, operations,
                                             original_loop_token, log=log,
                                             logger=metainterp_sd.jitlog)
 
@@ -549,7 +551,7 @@ def send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, type,
     try:
         loopname = jitdriver_sd.warmstate.get_location_str(greenkey)
         unique_id = jitdriver_sd.warmstate.get_unique_id(greenkey)
-        asminfo = do_compile_loop(jitdriver_sd.index, unique_id, metainterp_sd,
+        asminfo = do_compile_loop(loop.expected_inverted_guards, jitdriver_sd.index, unique_id, metainterp_sd,
                                   loop.inputargs,
                                   operations, original_jitcell_token,
                                   name=loopname,
@@ -577,7 +579,7 @@ def send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, type,
     if metainterp_sd.warmrunnerdesc is not None:    # for tests
         metainterp_sd.warmrunnerdesc.memory_manager.keep_loop_alive(original_jitcell_token)
 
-def send_bridge_to_backend(jitdriver_sd, metainterp_sd, faildescr, inputargs,
+def send_bridge_to_backend(expected_inverted_guards, jitdriver_sd, metainterp_sd, faildescr, inputargs,
                            operations, original_loop_token, memo):
     forget_optimization_info(operations)
     forget_optimization_info(inputargs)
@@ -601,7 +603,7 @@ def send_bridge_to_backend(jitdriver_sd, metainterp_sd, faildescr, inputargs,
     debug_start("jit-backend")
     log = have_debug_prints() or jl.jitlog_enabled()
     try:
-        asminfo = do_compile_bridge(metainterp_sd, faildescr, inputargs,
+        asminfo = do_compile_bridge(expected_inverted_guards, metainterp_sd, faildescr, inputargs,
                                     operations,
                                     original_loop_token, log,
                                     memo)
@@ -813,7 +815,7 @@ class AbstractResumeGuardDescr(ResumeDescr):
             self._debug_subinputargs = new_loop.inputargs
             self._debug_suboperations = new_loop.operations
         propagate_original_jitcell_token(new_loop)
-        send_bridge_to_backend(metainterp.jitdriver_sd, metainterp.staticdata,
+        send_bridge_to_backend(new_loop.expected_inverted_guards, metainterp.jitdriver_sd, metainterp.staticdata,
                                self, inputargs, new_loop.operations,
                                new_loop.original_jitcell_token,
                                metainterp.box_names_memo)
@@ -1157,7 +1159,7 @@ def compile_tmp_callback(cpu, jitdriver_sd, greenboxes, redargtypes,
     ]
     operations[1].setfailargs([])
     operations = get_deep_immutable_oplist(operations)
-    cpu.compile_loop(inputargs, operations, jitcell_token, log=False)
+    cpu.compile_loop([], inputargs, operations, jitcell_token, log=False)
 
     if memory_manager is not None:    # for tests
         memory_manager.keep_loop_alive(jitcell_token)

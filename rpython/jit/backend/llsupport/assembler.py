@@ -15,7 +15,7 @@ from rpython.rtyper.lltypesystem import rffi, lltype
 from rpython.rlib.rjitlog import rjitlog as jl
 
 DEBUG_COUNTER = lltype.Struct('DEBUG_COUNTER',
-    # 'b'ridge, 'l'abel, 'e'ntry point, 'j'ump, 'p'rior to label, 'a' for after guard
+    # 'b'ridge, 'l'abel, 'e'ntry point, 'j'ump, 'p'rior to label, 'a' for after guard, 's' for after prior seen inverted guard
     ('i', lltype.Signed),      # first field, at offset 0
     ('type', lltype.Char),
     ('number', lltype.Signed),
@@ -364,7 +364,7 @@ class BaseAssembler(object):
         return self.loop_run_counters[index]
 
     @specialize.argtype(1)
-    def _inject_debugging_code(self, looptoken, operations, tp, token, uuid):
+    def _inject_debugging_code(self, expected_inverted_guards, looptoken, operations, tp, token, uuid):
         if self._debug or jl.jitlog_enabled():
             newoperations = []
             self._append_debugging_code_head(newoperations, tp, token, uuid)
@@ -380,7 +380,7 @@ class BaseAssembler(object):
                                                 op.getdescr())
                 elif op.is_guard():
                     newoperations.append(op)
-                    self._append_debugging_code(newoperations, 'a', token,
+                    self._append_debugging_code(newoperations, 's' if idx in expected_inverted_guards else 'a', token,
                                                 op.getdescr())                    
                 else:
                     newoperations.append(op)
@@ -448,6 +448,8 @@ class BaseAssembler(object):
                     prefix = 'ExitOfToken(%d:%d)' % (struct.loop_id, struct.number,)
                 elif struct.type == 'a':
                     prefix = 'AfterGuardAt(%d)' % struct.number
+                elif struct.type == 's':
+                    prefix = 'AfterExpectedInvertedGuardAt(%d)' % struct.number                    
                 else:
                     num = struct.number
                     if num == -1:

@@ -251,7 +251,6 @@ class ListOrDictOrStr:
         elif self.ty == ListOrDictOrStr.DICT:
             for key, value in self.dct.items():
                 assert key.ty == ListOrDictOrStr.STR
-                print(key.st)
                 if key.st[len("Trace:"):].strip() == id_str:
                     return value
                 res = value.find_loop_id(id_str)

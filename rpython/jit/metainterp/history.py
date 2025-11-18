@@ -576,7 +576,10 @@ class TreeLoop(object):
         for op in self.operations:
             if op.is_guard():
                 guards.append(op)
-        current_guard = 0                
+        current_guard = 0
+        BOOL_GUARDS = ["guard_true", "guard_false"]
+        NONNULL_GUARDS = ["guard_nonnull", "guard_isnull"]
+        INVERTIBLE_GUARDS = BOOL_GUARDS + NONNULL_GUARDS
         for guard_op_bridge_pair in matching_root_guards.lst:
             assert guard_op_bridge_pair.ty == ListOrDictOrStr.DICT
             for guard_op, bridge in guard_op_bridge_pair.dct.items():
@@ -587,20 +590,27 @@ class TreeLoop(object):
                     guard_op_name = guard_op.st[len("GuardI:"):].strip()
                 else:
                     guard_op_name = guard_op.st[len("Guard:"):].strip()
-                print(guard_op_name)
                 if current_guard >= len(guards):
                     # If our guards don't match up anymore,
                     # just assume it conforms.
                     return
-                if guards[current_guard].getopname().startswith(guard_op_name):
+                trace_guard_opname = guards[current_guard].getopname().strip()
+                if trace_guard_opname.startswith(guard_op_name):
                     current_guard += 1
                     # We hit an inverted bridge, we don't know what trace will happen next,
                     # so this guide is no longer useful.
                     if inverted:
+                        print("SUCCESFULLY INVERTED A GUARD")
                         return
                 else:
-                    print("NOT CONFOMRING %d %s %s" % (current_guard, guard_op_name, guards[current_guard].getopname()))
-                    raise NotConformToGuide()
+                    current_guard += 1
+                    # it's an invertible guard, this means it's truly not conforming, so just bail.
+                    if (trace_guard_opname in INVERTIBLE_GUARDS) and (guard_op_name in INVERTIBLE_GUARDS):
+                        # Check the guards are the same guard type
+                        if ((trace_guard_opname in BOOL_GUARDS and guard_op_name in BOOL_GUARDS)
+                            or (trace_guard_opname in NONNULL_GUARDS and guard_op_name in NONNULL_GUARDS)):
+                            print("NOT CONFORMING %d %s %s" % (current_guard, guard_op_name, trace_guard_opname))
+                            raise NotConformToGuide()
 
     def check_consistency(self, check_descr=True):     # for testing
         "NOT_RPYTHON"
@@ -915,6 +925,7 @@ class Stats(object):
         self.jitcell_token_wrefs = []
         self.jitcell_dicts = []                   # <- not RPython
         self.metainterp_sd = metainterp_sd
+        self.trace_uuid = 0
 
     def clear(self):
         del self.loops[:]
@@ -948,7 +959,7 @@ class Stats(object):
         self.locations.append(loc)
 
     def name_for_new_loop(self):
-        return 'Loop #%d' % len(self.loops)
+        return self.compiled_count
 
     def add_new_loop(self, loop):
         self.loops.append(loop)

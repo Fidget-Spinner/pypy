@@ -159,11 +159,11 @@ def show_procedures(metainterp_sd, procedure=None, error=None):
 
 def create_empty_loop(metainterp, name_prefix=''):
     name = metainterp.staticdata.stats.name_for_new_loop()
-    loop = TreeLoop(name_prefix + name)
+    loop = TreeLoop(name_prefix + ("Loop #%d" % name))
     return loop
 
 
-def make_jitcell_token(jitdriver_sd):
+def make_jitcell_token(jitdriver_sd, cpu):
     jitcell_token = JitCellToken()
     jitcell_token.outermost_jitdriver_sd = jitdriver_sd
     return jitcell_token
@@ -217,7 +217,7 @@ def compile_simple_loop(metainterp, greenkey, trace, runtime_args, enable_opts,
                         cut_at, patch_jumpop_at_end=True):
     jitdriver_sd = metainterp.jitdriver_sd
     metainterp_sd = metainterp.staticdata
-    jitcell_token = make_jitcell_token(jitdriver_sd)
+    jitcell_token = make_jitcell_token(jitdriver_sd, metainterp_sd.cpu)
     call_pure_results = metainterp.call_pure_results
     data = SimpleCompileData(trace, call_pure_results=call_pure_results,
                              enable_opts=enable_opts)
@@ -268,7 +268,7 @@ def compile_loop(metainterp, greenkey, start, inputargs, jumpargs,
             faildescr=None, entry_bridge=False)
     #
     enable_opts = jitdriver_sd.warmstate.enable_opts
-    jitcell_token = make_jitcell_token(jitdriver_sd)
+    jitcell_token = make_jitcell_token(jitdriver_sd, metainterp_sd.cpu)
     cut_at = history.get_trace_position()
     history.record(rop.JUMP, jumpargs, None, descr=jitcell_token)
     if start != (0, 0, 0, 0, 0):
@@ -398,7 +398,11 @@ def compile_retrace(metainterp, greenkey, start,
         quasi_immutable_deps.update(start_state.quasi_immutable_deps)
     if quasi_immutable_deps:
         loop.quasi_immutable_deps = quasi_immutable_deps
-
+    from rpython.jit.metainterp.jitexc import NotConformToGuide
+    try:
+        loop.check_if_trace_follows_guide(jitdriver_sd.warmstate)
+    except NotConformToGuide:
+        return None
     target_token = loop.operations[-1].getdescr()
     resumekey.compile_and_attach(metainterp, loop, inputargs)
     return target_token
@@ -558,8 +562,8 @@ def send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, type,
         debug_info.asminfo = asminfo
         hooks.after_compile(debug_info)
     metainterp_sd.stats.add_new_loop(loop)
-    if not we_are_translated():
-        metainterp_sd.stats.compiled()
+    # if not we_are_translated():
+    metainterp_sd.stats.compiled()
     metainterp_sd.log("compiled new " + type)
     #
     if asminfo is not None:
@@ -607,8 +611,8 @@ def send_bridge_to_backend(jitdriver_sd, metainterp_sd, faildescr, inputargs,
     if hooks is not None:
         debug_info.asminfo = asminfo
         hooks.after_compile_bridge(debug_info)
-    if not we_are_translated():
-        metainterp_sd.stats.compiled()
+    # if not we_are_translated():
+    metainterp_sd.stats.compiled()
     metainterp_sd.log("compiled new bridge")
     #
     if asminfo is not None:
@@ -1015,7 +1019,7 @@ class ResumeFromInterpDescr(ResumeDescr):
         # with completely unoptimized arguments, as in the interpreter.
         metainterp_sd = metainterp.staticdata
         jitdriver_sd = metainterp.jitdriver_sd
-        new_loop.original_jitcell_token = jitcell_token = make_jitcell_token(jitdriver_sd)
+        new_loop.original_jitcell_token = jitcell_token = make_jitcell_token(jitdriver_sd, metainterp_sd.cpu)
         propagate_original_jitcell_token(new_loop)
         send_loop_to_backend(self.original_greenkey, metainterp.jitdriver_sd,
                              metainterp_sd, new_loop, "entry bridge",
@@ -1082,8 +1086,13 @@ def compile_trace(metainterp, resumekey, runtime_boxes, ends_with_jump=False):
     if info.quasi_immutable_deps:
         new_trace.quasi_immutable_deps = info.quasi_immutable_deps
     if info.final():
+        from rpython.jit.metainterp.jitexc import NotConformToGuide
         new_trace.inputargs = info.inputargs
         target_token = new_trace.operations[-1].getdescr()
+        try:
+            new_trace.check_if_trace_follows_guide(jitdriver_sd.warmstate)
+        except NotConformToGuide:
+            return None
         resumekey.compile_and_attach(metainterp, new_trace, inputargs)
         return target_token
     new_trace.inputargs = info.renamed_inputargs
@@ -1109,7 +1118,7 @@ def compile_tmp_callback(cpu, jitdriver_sd, greenboxes, redargtypes,
     calls back the interpreter.  Used temporarily: a fully compiled
     version of the code may end up replacing it.
     """
-    jitcell_token = make_jitcell_token(jitdriver_sd)
+    jitcell_token = make_jitcell_token(jitdriver_sd, cpu)
     #
     # record the target of a temporary callback to the interpreter
     jl.tmp_callback(jitcell_token)

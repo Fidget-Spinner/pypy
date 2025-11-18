@@ -529,7 +529,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
         if log or self._debug:
             number = looptoken.number
             operations = self._inject_debugging_code(looptoken, operations,
-                                                     'e', number)
+                                                     'e', number, number)
 
         regalloc = RegAlloc(self, self.cpu.translate_support_code)
         #
@@ -632,7 +632,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
         descr_number = compute_unique_id(faildescr)
         if log or self._debug:
             operations = self._inject_debugging_code(faildescr, operations,
-                                                     'b', descr_number)
+                                                     'b', descr_number, original_loop_token.number)
         arglocs = self.rebuild_faillocs_from_descr(faildescr, inputargs)
         regalloc = RegAlloc(self, self.cpu.translate_support_code)
         allgcrefs = []

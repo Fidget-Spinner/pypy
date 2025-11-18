@@ -364,50 +364,68 @@ class BaseAssembler(object):
         return self.loop_run_counters[index]
 
     @specialize.argtype(1)
-    def _inject_debugging_code(self, looptoken, operations, tp, number):
+    def _inject_debugging_code(self, looptoken, operations, tp, token, uuid):
         if self._debug or jl.jitlog_enabled():
             newoperations = []
-            self._append_debugging_code(newoperations, tp, number, None, use_token=False)
+            self._append_debugging_code_head(newoperations, tp, token, uuid)
             for idx, op in enumerate(operations):
                 if idx == len(operations) - 1:
-                    self._append_debugging_code(newoperations, 'j', number,
-                                                looptoken, use_token=True)
+                    self._append_debugging_code(newoperations, 'j', token,
+                                                looptoken)
                 if op.getopnum() == rop.LABEL:
-                    self._append_debugging_code(newoperations, 'p', number,
-                                                op.getdescr(), use_token=True)
+                    self._append_debugging_code(newoperations, 'p', token,
+                                                op.getdescr())
                     newoperations.append(op)
-                    self._append_debugging_code(newoperations, 'l', number,
-                                                op.getdescr(), use_token=True)
+                    self._append_debugging_code(newoperations, 'l', token,
+                                                op.getdescr())
                 elif op.is_guard():
                     newoperations.append(op)
-                    self._append_debugging_code(newoperations, 'a', number,
-                                                op.getdescr(), use_token=True)                    
+                    self._append_debugging_code(newoperations, 'a', token,
+                                                op.getdescr())                    
                 else:
                     newoperations.append(op)
             operations = newoperations
         return operations
 
-    def _append_debugging_code(self, operations, tp, number, token, use_token):
-        counter = self._register_counter(tp, number, token, use_token)
+    def _append_debugging_code(self, operations, tp, number, token):
+        counter = self._register_counter(tp, number, token)
         c_adr = ConstInt(rffi.cast(lltype.Signed, counter))
         operations.append(
             ResOperation(rop.INCREMENT_DEBUG_COUNTER, [c_adr]))
 
-    def _register_counter(self, tp, number, token, use_token):
+    def _append_debugging_code_head(self, operations, tp, number, uuid):
+        counter = self._register_head_counter(tp, number, uuid)
+        c_adr = ConstInt(rffi.cast(lltype.Signed, counter))
+        operations.append(
+            ResOperation(rop.INCREMENT_DEBUG_COUNTER, [c_adr]))
+
+
+    def _register_head_counter(self, tp, number, loop_id):
         # XXX the numbers here are ALMOST unique, but not quite, use a counter
         #     or something
         struct = lltype.malloc(DEBUG_COUNTER, flavor='raw',
                                track_allocation=False)
         struct.i = 0
         struct.type = tp
-        if use_token:
-            assert token
-            struct.number = compute_unique_id(token)
-            struct.loop_id = number
-        else:
-            struct.number = number
-            struct.loop_id = -42
+        struct.number = number
+        struct.loop_id = loop_id
 
+        # YYY very minor leak -- we need the counters to stay alive
+        # forever, just because we want to report them at the end
+        # of the process
+        self.loop_run_counters.append(struct)
+        return struct
+
+    def _register_counter(self, tp, number, token):
+        # XXX the numbers here are ALMOST unique, but not quite, use a counter
+        #     or something
+        struct = lltype.malloc(DEBUG_COUNTER, flavor='raw',
+                               track_allocation=False)
+        struct.i = 0
+        struct.type = tp
+        assert token
+        struct.number = compute_unique_id(token)
+        struct.loop_id = number
 
         # YYY very minor leak -- we need the counters to stay alive
         # forever, just because we want to report them at the end

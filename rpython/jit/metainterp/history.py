@@ -567,7 +567,7 @@ class TreeLoop(object):
         # Cannot find loop, don't bother guiding it.
         if matching_root_guards.ty == ListOrDictOrStr.NONE:
             return
-        print("Found loop %s" % loop_name)
+        # print("Found loop %s" % loop_name)
         assert matching_root_guards.ty == ListOrDictOrStr.LIST
         if len(matching_root_guards.lst) == 0:
             return     
@@ -582,6 +582,8 @@ class TreeLoop(object):
         NONNULL_GUARDS = ["guard_nonnull", "guard_isnull"]
         INVERTIBLE_GUARDS = BOOL_GUARDS + NONNULL_GUARDS
         for guard_op_bridge_pair in matching_root_guards.lst:
+            if guard_op_bridge_pair.ty == ListOrDictOrStr.NONE:
+                continue
             assert guard_op_bridge_pair.ty == ListOrDictOrStr.DICT
             for guard_op, bridge in guard_op_bridge_pair.dct.items():
                 assert guard_op.ty == ListOrDictOrStr.STR
@@ -610,7 +612,12 @@ class TreeLoop(object):
                         print("SUCCESFULLY INVERTED A GUARD %d" % (current_guard-1))
                         if not previously_inverted:
                             print("BAIL, newly seen inverted guard")
-                            # Remove the entire guide, as it's probably wrong now.
+                            # loop_name_as_int = int(loop_name)
+                            # # Remove all the higher trace idxes from the guide, as they are probaly wrong now.
+                            # match = True
+                            # while match:
+                            #     match = shape_guide.clear_loop_id("%d" % loop_name_as_int)
+                            #     loop_name_as_int += 1
                             warmstate.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
                             self.expected_inverted_guards = inverted_guard_idxes
                             return 

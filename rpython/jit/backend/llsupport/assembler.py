@@ -369,11 +369,12 @@ class BaseAssembler(object):
             current_guard_idx = 0
             newoperations = []
             self._append_debugging_code_head(newoperations, tp, token, uuid)
-            for idx, op in enumerate(operations):
-                if idx == len(operations) - 1:
+            for op in operations:
+                if op.getopnum() == rop.JUMP:
                     self._append_debugging_code(newoperations, 'j', token,
                                                 looptoken)
-                if op.getopnum() == rop.LABEL:
+                    newoperations.append(op)
+                elif op.getopnum() == rop.LABEL:
                     self._append_debugging_code(newoperations, 'p', token,
                                                 op.getdescr())
                     newoperations.append(op)

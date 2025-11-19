@@ -264,7 +264,31 @@ class ListOrDictOrStr:
                     return res
             return ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
         assert False
-                
+
+    @jit.dont_look_inside
+    def clear_loop_id(self, id_str):
+        if self.ty == ListOrDictOrStr.NONE:
+            return False
+        elif self.ty == ListOrDictOrStr.STR:
+            return False
+        elif self.ty == ListOrDictOrStr.DICT:
+            for key, value in self.dct.items():
+                assert key.ty == ListOrDictOrStr.STR
+                if key.st[len("Trace:"):].strip() == id_str:
+                    self.dct[key] = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+                    return True
+                res = value.clear_loop_id(id_str)
+                if res:
+                    return res
+            return False
+        elif self.ty == ListOrDictOrStr.LIST:
+            for idx, item in enumerate(self.lst):
+                res = item.clear_loop_id(id_str)
+                if res:
+                    self.lst[idx] = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+                    return res
+            return False
+        assert False
 
 """
 This is actually for copying into RPython.

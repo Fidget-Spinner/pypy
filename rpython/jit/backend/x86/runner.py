@@ -99,6 +99,8 @@ class AbstractX86CPU(AbstractLLCPU):
                        original_loop_token, log=True, logger=None):
         clt = original_loop_token.compiled_loop_token
         clt.compiling_a_bridge()
+        for guard_idx in expected_inverted_guards:
+            print("EXPECTED INVERTED: %d" % guard_idx)        
         return self.assembler.assemble_bridge(expected_inverted_guards, faildescr, inputargs, operations,
                                               original_loop_token, log, logger)
 

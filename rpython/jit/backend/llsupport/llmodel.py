@@ -112,6 +112,8 @@ class AbstractLLCPU(AbstractCPU):
 
     def compile_loop(self, expected_inverted_guards, inputargs, operations, looptoken, jd_id=0,
                      unique_id=0, log=True, name='', logger=None):
+        for guard_idx in expected_inverted_guards:
+            print("EXPECTED INVERTED: %d" % guard_idx)        
         return self.assembler.assemble_loop(expected_inverted_guards, jd_id, unique_id, logger, name,
                                             inputargs, operations,
                                             looptoken, log)

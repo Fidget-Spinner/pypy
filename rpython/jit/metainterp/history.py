@@ -573,9 +573,9 @@ class TreeLoop(object):
             return     
         # find all guards in operations
         guards = []
-        for idx, op in enumerate(self.operations):
+        for op in self.operations:
             if op.is_guard():
-                guards.append((idx, op))
+                guards.append(op)
         current_guard = 0
         inverted_guard_idxes = []
         BOOL_GUARDS = ["guard_true", "guard_false"]
@@ -599,15 +599,15 @@ class TreeLoop(object):
                 if current_guard >= len(guards):
                     # If our guards don't match up anymore,
                     # just assume it conforms.
+                    self.expected_inverted_guards = inverted_guard_idxes
                     return
-                trace_guard_opname = guards[current_guard][1].getopname().strip()
-                trace_guard_idx = guards[current_guard][0]
+                trace_guard_opname = guards[current_guard].getopname().strip()
                 if trace_guard_opname.startswith(guard_op_name):
                     current_guard += 1
                     # We hit an inverted bridge, that we did not previously see inverted.
                     if inverted:
-                        inverted_guard_idxes.append(trace_guard_idx)
-                        print("SUCCESFULLY INVERTED A GUARD %d" % current_guard)
+                        inverted_guard_idxes.append(current_guard-1)
+                        print("SUCCESFULLY INVERTED A GUARD %d" % (current_guard-1))
                         if not previously_inverted:
                             print("BAIL, newly seen inverted guard")
                             # Remove the entire guide, as it's probably wrong now.

@@ -366,6 +366,7 @@ class BaseAssembler(object):
     @specialize.argtype(1)
     def _inject_debugging_code(self, expected_inverted_guards, looptoken, operations, tp, token, uuid):
         if self._debug or jl.jitlog_enabled():
+            current_guard_idx = 0
             newoperations = []
             self._append_debugging_code_head(newoperations, tp, token, uuid)
             for idx, op in enumerate(operations):
@@ -380,8 +381,9 @@ class BaseAssembler(object):
                                                 op.getdescr())
                 elif op.is_guard():
                     newoperations.append(op)
-                    self._append_debugging_code(newoperations, 's' if idx in expected_inverted_guards else 'a', token,
-                                                op.getdescr())                    
+                    self._append_debugging_code(newoperations, 's' if current_guard_idx in expected_inverted_guards else 'a', token,
+                                                op.getdescr())
+                    current_guard_idx += 1
                 else:
                     newoperations.append(op)
             operations = newoperations

@@ -27,6 +27,8 @@ from rpython.rlib.objectmodel import we_are_translated, specialize, always_inlin
 from rpython.rlib.unroll import unrolling_iterable
 from rpython.rtyper.lltypesystem import lltype, rffi, llmemory
 from rpython.rtyper import rclass
+from rpython.rlib import jit
+
 
 SIZE_LIVE_OP = OFFSET_SIZE + 1
 
@@ -2549,9 +2551,68 @@ class MetaInterp(object):
                 print(jitcode.name)
             raise AssertionError
 
+    @jit.dont_look_inside
+    def check_if_guard_follows_guide(self, loop_idx, to_check_guards_idx, to_check_guard_opnum):
+        from rpython.jit.metainterp.warmstate import ListOrDictOrStr
+        from rpython.jit.metainterp.resoperation import opname
+        shape_guide = self.jitdriver_sd.warmstate.shape_guide
+        if shape_guide.ty == ListOrDictOrStr.NONE:
+            return
+        loop_name = "%d" % loop_idx
+        # Find the matching loop first
+        matching_root_guards = shape_guide.find_loop_id(loop_name)
+        # Cannot find loop, don't bother guiding it.
+        if matching_root_guards.ty == ListOrDictOrStr.NONE:
+            return
+        # print("Found loop %s" % loop_name)
+        assert matching_root_guards.ty == ListOrDictOrStr.LIST
+        if len(matching_root_guards.lst) <= to_check_guards_idx:
+            return     
+        BOOL_GUARDS = ["guard_true", "guard_false"]
+        NONNULL_GUARDS = ["guard_nonnull", "guard_isnull"]
+        INVERTIBLE_GUARDS = BOOL_GUARDS + NONNULL_GUARDS
+        guard_op_bridge_pair = matching_root_guards.lst[to_check_guards_idx]
+        assert guard_op_bridge_pair.ty == ListOrDictOrStr.DICT
+        for guard_op, bridge in guard_op_bridge_pair.dct.items():
+            assert guard_op.ty == ListOrDictOrStr.STR
+            inverted = False
+            previously_inverted = False
+            if guard_op.st.startswith("GuardI"):
+                inverted = True
+                guard_op_name = guard_op.st[len("GuardI:"):].strip()
+            elif guard_op.st.startswith("GuardP"):
+                previously_inverted = True
+                inverted = True
+                guard_op_name = guard_op.st[len("GuardP:"):].strip()
+            else:
+                guard_op_name = guard_op.st[len("Guard:"):].strip()
+            trace_guard_opname = opname[to_check_guard_opnum].lower()
+            if trace_guard_opname.startswith(guard_op_name):
+                # We hit an inverted bridge, that we did not previously see inverted.
+                if inverted:
+                    self.history.notify_inverted_guard(to_check_guards_idx)
+                    print("SUCCESFULLY INVERTED A GUARD %d" % (to_check_guards_idx))
+                    if not previously_inverted:
+                        print("BAIL, newly seen inverted guard")
+                        self.jitdriver_sd.warmstate.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+                    return 
+            else:
+                # it's an invertible guard, this means it's truly not conforming, so just bail.
+                if (trace_guard_opname in INVERTIBLE_GUARDS) and (guard_op_name in INVERTIBLE_GUARDS):
+                    # Check the guards are the same guard type
+                    if ((trace_guard_opname in BOOL_GUARDS and guard_op_name in BOOL_GUARDS)
+                        or (trace_guard_opname in NONNULL_GUARDS and guard_op_name in NONNULL_GUARDS)):
+                        # print("NOT CONFORMING %d %s %s" % (current_guard, guard_op_name, trace_guard_opname))
+                        raise SwitchToBlackhole(Counters.NOT_CONFORM_TO_GUIDE)
+            return
+
     def generate_guard(self, opnum, box=None, extraarg=None, resumepc=-1):
         if isinstance(box, Const):    # no need for a guard
             return
+        # Ken Jin: Check if the guard conforms to the shape
+        guard_idx_for_this_trace = self.history.notify_guard()
+        loop_idx = self.staticdata.stats.name_for_new_loop()
+        self.check_if_guard_follows_guide(loop_idx, guard_idx_for_this_trace, opnum)
         if opnum == rop.GUARD_EXCEPTION:
             assert box is None
             assert extraarg is not None

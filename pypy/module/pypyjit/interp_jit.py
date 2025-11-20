@@ -80,14 +80,18 @@ pypyjitdriver = PyPyJitDriver(get_printable_location = get_printable_location,
 class __extend__(PyFrame):
 
     def dispatch(self, pycode, next_instr, ec):
+        from rpython.jit.metainterp.pyjitpl import SwitchToBlackhole        
         self = hint(self, access_directly=True)
         next_instr = r_uint(next_instr)
         is_being_profiled = self.get_is_being_profiled()
         try:
             while True:
-                pypyjitdriver.jit_merge_point(ec=ec,
-                    frame=self, next_instr=next_instr, pycode=pycode,
-                    is_being_profiled=is_being_profiled)
+                try:
+                    pypyjitdriver.jit_merge_point(ec=ec,
+                        frame=self, next_instr=next_instr, pycode=pycode,
+                        is_being_profiled=is_being_profiled)
+                except SwitchToBlackhole:
+                    pass
                 co_code = pycode.co_code
                 self.valuestackdepth = hint(self.valuestackdepth, promote=True)
                 next_instr = self.handle_bytecode(co_code, next_instr, ec)
@@ -115,9 +119,13 @@ class __extend__(PyFrame):
             ec.bytecode_trace(self, decr_by)
             jumpto = r_uint(self.last_instr)
         #
-        pypyjitdriver.can_enter_jit(frame=self, ec=ec, next_instr=jumpto,
-                                 pycode=self.getcode(),
-                                 is_being_profiled=self.get_is_being_profiled())
+            from rpython.jit.metainterp.pyjitpl import SwitchToBlackhole
+        try:
+            pypyjitdriver.can_enter_jit(frame=self, ec=ec, next_instr=jumpto,
+                                     pycode=self.getcode(),
+                                     is_being_profiled=self.get_is_being_profiled())
+        except SwitchToBlackhole:
+            pass
         return jumpto
 
 def _get_adapted_tick_counter():
@@ -162,7 +170,7 @@ def set_param(space, __args__):
         if key == 'enable_opts':
             jit.set_param(None, 'enable_opts', space.text_w(w_value))
         if key == 'shapefile':
-            jit.set_param(None, 'shapefile', space.text_w(w_value))            
+            jit.set_param(None, 'shapefile', space.text_w(w_value))
         else:
             intval = space.int_w(w_value)
             for name, _ in unroll_parameters:

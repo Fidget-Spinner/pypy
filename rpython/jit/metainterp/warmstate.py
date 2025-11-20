@@ -427,6 +427,9 @@ class WarmEnterState(object):
 
     @jit.dont_look_inside
     def set_param_shapefile(self, shapefile):
+        if shapefile == '':
+            self.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+            return
         import pypy.module._pypyjson.interp_decoder as mod     
         import os
         assert isinstance(shapefile, str)

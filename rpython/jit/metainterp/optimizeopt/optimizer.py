@@ -18,7 +18,7 @@ from rpython.rtyper import rclass
 from rpython.rtyper.lltypesystem import llmemory
 from rpython.jit.metainterp.optimize import SpeculativeError
 
-
+import os
 
 
 CONST_0      = ConstInt(0)
@@ -624,24 +624,28 @@ class Optimizer(Optimization):
             arg = self.force_box(op.getarg(i))
             op.setarg(i, arg)
         self.metainterp_sd.profiler.count(jitprof.Counters.OPT_OPS)
-        if rop.is_guard(op.opnum):
-            assert isinstance(op, GuardResOp)
-            self.metainterp_sd.profiler.count(jitprof.Counters.OPT_GUARDS)
-            pendingfields = self.pendingfields
-            self.pendingfields = None
-            if self.replaces_guard and orig_op in self.replaces_guard:
-                self.replace_guard_op(self.replaces_guard[orig_op], op)
-                del self.replaces_guard[orig_op]
-                return
+        from rpython.jit.metainterp.warmstate import ListOrDictOrStr        
+        # Ken Jin: do not eliminate guards when we're in profiling mode,
+        # as we want to use them to guide the trace.
+        if (self.jitdriver_sd.warmstate.shape_guide.ty == ListOrDictOrStr.LIST):
+            if rop.is_guard(op.opnum):
+                assert isinstance(op, GuardResOp)
+                self.metainterp_sd.profiler.count(jitprof.Counters.OPT_GUARDS)
+                pendingfields = self.pendingfields
+                self.pendingfields = None
+                if self.replaces_guard and orig_op in self.replaces_guard:
+                    self.replace_guard_op(self.replaces_guard[orig_op], op)
+                    del self.replaces_guard[orig_op]
+                    return
+                else:
+                    op = self.emit_guard_operation(op, pendingfields)
+            opnum = op.opnum
+            if ((rop.has_no_side_effect(opnum) or rop.is_guard(opnum) or
+                rop.is_jit_debug(opnum) or
+                rop.is_ovf(opnum)) and not self.is_call_pure_pure_canraise(op)):
+                pass
             else:
-                op = self.emit_guard_operation(op, pendingfields)
-        opnum = op.opnum
-        if ((rop.has_no_side_effect(opnum) or rop.is_guard(opnum) or
-             rop.is_jit_debug(opnum) or
-             rop.is_ovf(opnum)) and not self.is_call_pure_pure_canraise(op)):
-            pass
-        else:
-            self._last_guard_op = None
+                self._last_guard_op = None
         self._really_emitted_operation = op
         self._newoperations.append(op)
         self._emittedoperations[op] = None

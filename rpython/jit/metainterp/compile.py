@@ -242,13 +242,8 @@ def compile_simple_loop(metainterp, greenkey, trace, runtime_args, enable_opts,
     loop.operations = [label] + ops
     if not we_are_translated():
         loop.check_consistency()
-    from rpython.jit.metainterp.jitexc import NotConformToGuide
-    try:
-        loop.check_if_trace_follows_guide(jitdriver_sd.warmstate)
-    except NotConformToGuide:
-        return None        
     jitcell_token.target_tokens = [target_token]
-    send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
+    send_loop_to_backend(metainterp.history.trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          runtime_args, metainterp.box_names_memo)
     record_loop_or_bridge(metainterp_sd, loop)
     return target_token
@@ -337,12 +332,7 @@ def compile_loop(metainterp, greenkey, start, inputargs, jumpargs,
     jump_op = loop_ops[-1]
     if jump_op.getdescr() is loop_info.label_op.getdescr():
         assert jump_op.numargs() == loop_info.label_op.numargs()
-    from rpython.jit.metainterp.jitexc import NotConformToGuide
-    try:
-        loop.check_if_trace_follows_guide(warmstate)
-    except NotConformToGuide:
-        return None
-    send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
+    send_loop_to_backend(metainterp.history.trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          inputargs, metainterp.box_names_memo)
     record_loop_or_bridge(metainterp_sd, loop)
     loop_info.post_loop_compilation(loop, jitdriver_sd, metainterp, jitcell_token)
@@ -398,11 +388,6 @@ def compile_retrace(metainterp, greenkey, start,
         quasi_immutable_deps.update(start_state.quasi_immutable_deps)
     if quasi_immutable_deps:
         loop.quasi_immutable_deps = quasi_immutable_deps
-    from rpython.jit.metainterp.jitexc import NotConformToGuide
-    try:
-        loop.check_if_trace_follows_guide(jitdriver_sd.warmstate)
-    except NotConformToGuide:
-        return None
     target_token = loop.operations[-1].getdescr()
     resumekey.compile_and_attach(metainterp, loop, inputargs)
     return target_token
@@ -517,7 +502,7 @@ def forget_optimization_info(lst, reset_values=False):
         if reset_values:
             item.reset_value()
 
-def send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, type,
+def send_loop_to_backend(expected_inverted_guards, greenkey, jitdriver_sd, metainterp_sd, loop, type,
                          orig_inpargs, memo):
     forget_optimization_info(loop.operations)
     forget_optimization_info(loop.inputargs)
@@ -551,7 +536,7 @@ def send_loop_to_backend(greenkey, jitdriver_sd, metainterp_sd, loop, type,
     try:
         loopname = jitdriver_sd.warmstate.get_location_str(greenkey)
         unique_id = jitdriver_sd.warmstate.get_unique_id(greenkey)
-        asminfo = do_compile_loop(loop.expected_inverted_guards, jitdriver_sd.index, unique_id, metainterp_sd,
+        asminfo = do_compile_loop(expected_inverted_guards, jitdriver_sd.index, unique_id, metainterp_sd,
                                   loop.inputargs,
                                   operations, original_jitcell_token,
                                   name=loopname,
@@ -815,7 +800,7 @@ class AbstractResumeGuardDescr(ResumeDescr):
             self._debug_subinputargs = new_loop.inputargs
             self._debug_suboperations = new_loop.operations
         propagate_original_jitcell_token(new_loop)
-        send_bridge_to_backend(new_loop.expected_inverted_guards, metainterp.jitdriver_sd, metainterp.staticdata,
+        send_bridge_to_backend(metainterp.history.trace.inverted_guard_idxes, metainterp.jitdriver_sd, metainterp.staticdata,
                                self, inputargs, new_loop.operations,
                                new_loop.original_jitcell_token,
                                metainterp.box_names_memo)
@@ -1023,7 +1008,7 @@ class ResumeFromInterpDescr(ResumeDescr):
         jitdriver_sd = metainterp.jitdriver_sd
         new_loop.original_jitcell_token = jitcell_token = make_jitcell_token(jitdriver_sd, metainterp_sd.cpu)
         propagate_original_jitcell_token(new_loop)
-        send_loop_to_backend(self.original_greenkey, metainterp.jitdriver_sd,
+        send_loop_to_backend(metainterp.history.trace.inverted_guard_idxes, self.original_greenkey, metainterp.jitdriver_sd,
                              metainterp_sd, new_loop, "entry bridge",
                              orig_inputargs, metainterp.box_names_memo)
         # send the new_loop to warmspot.py, to be called directly the next time
@@ -1088,13 +1073,8 @@ def compile_trace(metainterp, resumekey, runtime_boxes, ends_with_jump=False):
     if info.quasi_immutable_deps:
         new_trace.quasi_immutable_deps = info.quasi_immutable_deps
     if info.final():
-        from rpython.jit.metainterp.jitexc import NotConformToGuide
         new_trace.inputargs = info.inputargs
         target_token = new_trace.operations[-1].getdescr()
-        try:
-            new_trace.check_if_trace_follows_guide(jitdriver_sd.warmstate)
-        except NotConformToGuide:
-            return None
         resumekey.compile_and_attach(metainterp, new_trace, inputargs)
         return target_token
     new_trace.inputargs = info.renamed_inputargs

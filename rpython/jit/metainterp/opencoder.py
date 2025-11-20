@@ -499,6 +499,16 @@ class Trace(BaseTrace):
         self._start = max_num_inputargs
         self._pos = max_num_inputargs
         self.tag_overflow = False
+        self.guard_count = 0
+        self.inverted_guard_idxes = []
+
+    def notify_guard(self):
+        res = self.guard_count
+        self.guard_count += 1
+        return res
+
+    def notify_inverted_guard(self, idx):
+        self.inverted_guard_idxes.append(idx)
 
     def set_inputargs(self, inputargs):
         self.inputargs = inputargs

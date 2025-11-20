@@ -72,7 +72,7 @@ class LoopVersionInfo(BasicLoopInfo):
             if version not in compiled:
                 assert isinstance(descr, AbstractFailDescr)
                 vl = version.create_backend_loop(metainterp, jitcell_token)
-                asminfo = send_bridge_to_backend(loop.expected_inverted_guards, jitdriver_sd, metainterp_sd,
+                asminfo = send_bridge_to_backend(metainterp.history.trace.inverted_guard_idxes, jitdriver_sd, metainterp_sd,
                                                  descr, vl.inputargs,
                                                  vl.operations, jitcell_token,
                                                  metainterp.box_names_memo)

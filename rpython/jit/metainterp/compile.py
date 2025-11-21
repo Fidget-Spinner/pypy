@@ -243,7 +243,7 @@ def compile_simple_loop(metainterp, greenkey, trace, runtime_args, enable_opts,
     if not we_are_translated():
         loop.check_consistency()
     jitcell_token.target_tokens = [target_token]
-    send_loop_to_backend(metainterp.history.trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
+    send_loop_to_backend(trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          runtime_args, metainterp.box_names_memo)
     record_loop_or_bridge(metainterp_sd, loop)
     return target_token
@@ -332,7 +332,7 @@ def compile_loop(metainterp, greenkey, start, inputargs, jumpargs,
     jump_op = loop_ops[-1]
     if jump_op.getdescr() is loop_info.label_op.getdescr():
         assert jump_op.numargs() == loop_info.label_op.numargs()
-    send_loop_to_backend(metainterp.history.trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
+    send_loop_to_backend(trace.inverted_guard_idxes, greenkey, jitdriver_sd, metainterp_sd, loop, "loop",
                          inputargs, metainterp.box_names_memo)
     record_loop_or_bridge(metainterp_sd, loop)
     loop_info.post_loop_compilation(loop, jitdriver_sd, metainterp, jitcell_token)

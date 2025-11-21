@@ -503,9 +503,10 @@ class Trace(BaseTrace):
         self.inverted_guard_idxes = []
 
     def notify_guard(self):
-        res = self.guard_count
         self.guard_count += 1
-        return res
+    
+    def guard_idx(self):
+        return self.guard_count
 
     def notify_inverted_guard(self, idx):
         self.inverted_guard_idxes.append(idx)

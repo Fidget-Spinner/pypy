@@ -809,11 +809,6 @@ class History(object):
             assert box.type == 'f'
             return self.record1(rop.SAME_AS_F, box, box.getfloatstorage())
 
-    def notify_guard(self):
-        return self.trace.notify_guard()
-
-    def notify_inverted_guard(self, idx):
-        self.trace.notify_inverted_guard(idx)
 # ____________________________________________________________
 
 

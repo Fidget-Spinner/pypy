@@ -2568,7 +2568,8 @@ class MetaInterp(object):
         # Cannot find loop, don't bother guiding it.
         if matching_root_guards.ty == ListOrDictOrStr.NONE:
             return
-        # print("Found loop %s" % loop_name)
+        trace_guard_opname = opname[to_check_guard_opnum].lower()        
+        print("Found loop %s %d %s" % (loop_name, to_check_guards_idx, trace_guard_opname))
         assert matching_root_guards.ty == ListOrDictOrStr.LIST
         if len(matching_root_guards.lst) <= to_check_guards_idx:
             return     
@@ -2591,7 +2592,6 @@ class MetaInterp(object):
             else:
                 # Not a guard that we want to invert, don't bother.
                 return
-            trace_guard_opname = opname[to_check_guard_opnum].lower()
             if trace_guard_opname.startswith(guard_op_name):
                 # We hit an inverted bridge, that we did not previously see inverted.
                 if inverted:

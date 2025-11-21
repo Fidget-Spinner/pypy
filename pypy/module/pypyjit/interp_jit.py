@@ -80,7 +80,6 @@ pypyjitdriver = PyPyJitDriver(get_printable_location = get_printable_location,
 class __extend__(PyFrame):
 
     def dispatch(self, pycode, next_instr, ec):
-        from rpython.jit.metainterp.pyjitpl import SwitchToBlackhole        
         self = hint(self, access_directly=True)
         next_instr = r_uint(next_instr)
         is_being_profiled = self.get_is_being_profiled()

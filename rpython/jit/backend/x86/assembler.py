@@ -1181,6 +1181,20 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
 
     regalloc_mov = mov # legacy interface
 
+    def cmp(self, loc0, loc1):
+        if isinstance(loc0, ImmedLoc):
+            # There can be immediates due to no more constant
+            # rewriting when we're profiling.
+            # These are essentially useless guards, but they
+            # let us profile guards more accurately.
+            self.mc.forget_scratch_register()
+            self.mov(eax, X86_64_SCRATCH_REG)
+            self.mov(loc0, eax)
+            self.mc.CMP(eax, loc1)
+            self.mov(X86_64_SCRATCH_REG, eax)
+        else:
+            self.mc.CMP(loc0, loc1)
+
     def regalloc_push(self, loc):
         if isinstance(loc, RegLoc) and loc.is_xmm:
             self.mc.SUB_ri(esp.value, 8)   # = size of doubles
@@ -1504,11 +1518,11 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
             self.mov(loc0, resloc)
 
     def test_location(self, loc):
-        assert not isinstance(loc, ImmedLoc)
+        # assert not isinstance(loc, ImmedLoc)
         if isinstance(loc, RegLoc):
             self.mc.TEST_rr(loc.value, loc.value)   # more compact
         else:
-            self.mc.CMP(loc, imm0)         # works from memory too
+            self.cmp(loc, imm0)         # works from memory too
 
     def genop_int_is_true(self, op, arglocs, resloc):
         self.test_location(arglocs[0])
@@ -1790,7 +1804,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
             self.generate_guard_no_exception(guard_token)
 
     def generate_guard_no_exception(self, guard_token):
-        self.mc.CMP(heap(self.cpu.pos_exception()), imm0)
+        self.cmp(heap(self.cpu.pos_exception()), imm0)
         self.guard_success_cc = rx86.Conditions['Z']
         self.implement_guard(guard_token)
 
@@ -1807,7 +1821,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
         loc = locs[0]
         loc1 = locs[1]
         self.mc.MOV(loc1, heap(self.cpu.pos_exception()))
-        self.mc.CMP(loc1, loc)
+        self.cmp(loc1, loc)
         self.guard_success_cc = rx86.Conditions['E']
         self.implement_guard(guard_token)
         self._store_and_reset_exception(self.mc, resloc)
@@ -1871,7 +1885,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
             assert guard_op.getarg(1).type == FLOAT
             self.mc.UCOMISD(locs[0], locs[1])
         else:
-            self.mc.CMP(locs[0], locs[1])
+            self.cmp(locs[0], locs[1])
         self.guard_success_cc = rx86.Conditions['E']
         self.implement_guard(guard_token)
 
@@ -1904,7 +1918,7 @@ class Assembler386(BaseAssembler, VectorAssemblerMixin):
         self.implement_guard(guard_token)
 
     def genop_guard_guard_nonnull_class(self, guard_op, guard_token, locs, ign):
-        self.mc.CMP(locs[0], imm1)
+        self.cmp(locs[0], imm1)
         # Patched below
         jb_location = self.mc.emit_forward_jump('B')
         self._cmp_guard_class(locs)

@@ -427,7 +427,10 @@ class WarmEnterState(object):
 
     @jit.dont_look_inside
     def set_param_shapefile(self, shapefile):
-        if shapefile == '':
+        from rpython.jit.metainterp.optimizeopt import ALL_OPTS_DICT
+        if shapefile == 'empty':
+            self.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
+            self.enable_opts = ALL_OPTS_DICT
             return
         import pypy.module._pypyjson.interp_decoder as mod     
         import os
@@ -438,6 +441,14 @@ class WarmEnterState(object):
             res = Decoder(contents).parse_array()
         finally:
             os.close(f)
+        # Ken Jin: do not eliminate guards when we're in profiling mode,
+        # as we want to use them to guide the trace.
+        copy = {}
+        for k, v in self.enable_opts.items():
+            copy[k] = v
+        if 'rewrite' in copy:
+            del copy['rewrite']
+        self.enable_opts = copy
         self.shape_guide = res
 
     def set_param_shape_guide(self, value):

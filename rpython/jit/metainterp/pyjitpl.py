@@ -2350,6 +2350,10 @@ class MetaInterpStaticData(object):
 
 # ____________________________________________________________
 
+class NotConformToGuide(jitexc.JitException):
+    def __str__(self):
+        return 'NotConformToGuide()'
+
 class MetaInterpGlobalData(object):
     """This object contains the JIT's global, mutable data.
 
@@ -2592,6 +2596,7 @@ class MetaInterp(object):
                 if inverted:
                     self.history.notify_inverted_guard(to_check_guards_idx)
                     print("SUCCESFULLY INVERTED A GUARD %d" % (to_check_guards_idx))
+                    return
                     if not previously_inverted:
                         print("BAIL, newly seen inverted guard")
                         self.jitdriver_sd.warmstate.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
@@ -2603,7 +2608,7 @@ class MetaInterp(object):
                     if ((trace_guard_opname in BOOL_GUARDS and guard_op_name in BOOL_GUARDS)
                         or (trace_guard_opname in NONNULL_GUARDS and guard_op_name in NONNULL_GUARDS)):
                         # print("NOT CONFORMING %d %s %s" % (current_guard, guard_op_name, trace_guard_opname))
-                        raise SwitchToBlackhole(Counters.NOT_CONFORM_TO_GUIDE)
+                        raise NotConformToGuide()
             return
 
     def generate_guard(self, opnum, box=None, extraarg=None, resumepc=-1):
@@ -2935,11 +2940,15 @@ class MetaInterp(object):
         original_greenkey = original_boxes[:num_green_args]
         self.resumekey = compile.ResumeFromInterpDescr(original_greenkey)
         self.seen_loop_header_for_jdindex = -1
+        from rpython.jit.metainterp.pyjitpl import NotConformToGuide
         try:
             self.create_empty_history(original_boxes[num_green_args:])
             self.interpret()
         except SwitchToBlackhole as stb:
             self.run_blackhole_interp_to_cancel_tracing(stb)
+        except NotConformToGuide:
+            from rpython.jit.metainterp.blackhole import convert_and_run_from_pyjitpl
+            convert_and_run_from_pyjitpl(self, False)
         assert False, "should always raise"
 
     def handle_guard_failure(self, resumedescr, deadframe):

@@ -86,12 +86,9 @@ class __extend__(PyFrame):
         is_being_profiled = self.get_is_being_profiled()
         try:
             while True:
-                try:
-                    pypyjitdriver.jit_merge_point(ec=ec,
-                        frame=self, next_instr=next_instr, pycode=pycode,
-                        is_being_profiled=is_being_profiled)
-                except SwitchToBlackhole:
-                    pass
+                pypyjitdriver.jit_merge_point(ec=ec,
+                    frame=self, next_instr=next_instr, pycode=pycode,
+                    is_being_profiled=is_being_profiled)
                 co_code = pycode.co_code
                 self.valuestackdepth = hint(self.valuestackdepth, promote=True)
                 next_instr = self.handle_bytecode(co_code, next_instr, ec)
@@ -104,6 +101,7 @@ class __extend__(PyFrame):
             return self.popvalue()
 
     def jump_absolute(self, jumpto, next_instr, ec):
+        from rpython.jit.metainterp.pyjitpl import SwitchToBlackhole
         jumpto *= 2
         if jumpto >= next_instr: # no backward jump, just normal
             return jumpto
@@ -119,13 +117,9 @@ class __extend__(PyFrame):
             ec.bytecode_trace(self, decr_by)
             jumpto = r_uint(self.last_instr)
         #
-            from rpython.jit.metainterp.pyjitpl import SwitchToBlackhole
-        try:
-            pypyjitdriver.can_enter_jit(frame=self, ec=ec, next_instr=jumpto,
-                                     pycode=self.getcode(),
-                                     is_being_profiled=self.get_is_being_profiled())
-        except SwitchToBlackhole:
-            pass
+        pypyjitdriver.can_enter_jit(frame=self, ec=ec, next_instr=jumpto,
+                                pycode=self.getcode(),
+                                is_being_profiled=self.get_is_being_profiled())
         return jumpto
 
 def _get_adapted_tick_counter():

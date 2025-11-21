@@ -627,7 +627,7 @@ class Optimizer(Optimization):
         from rpython.jit.metainterp.warmstate import ListOrDictOrStr        
         # Ken Jin: do not eliminate guards when we're in profiling mode,
         # as we want to use them to guide the trace.
-        if (self.jitdriver_sd.warmstate.shape_guide.ty == ListOrDictOrStr.LIST):
+        if (self.jitdriver_sd.warmstate.shape_guide.ty != ListOrDictOrStr.LIST):
             if rop.is_guard(op.opnum):
                 assert isinstance(op, GuardResOp)
                 self.metainterp_sd.profiler.count(jitprof.Counters.OPT_GUARDS)

@@ -435,7 +435,7 @@ class WarmEnterState(object):
             copy[k] = v
         if 'rewrite' in copy:
             del copy['rewrite']
-        self.enable_opts = copy        
+        self.enable_opts = copy
         if shapefile == 'empty':
             self.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
             self.enable_opts = ALL_OPTS_DICT
@@ -453,6 +453,8 @@ class WarmEnterState(object):
         finally:
             os.close(f)
         self.shape_guide = res
+        if "enable_opt" == shapefile.split(':')[1].strip():
+            self.enable_opts = ALL_OPTS_DICT
 
     def set_param_shape_guide(self, value):
         return

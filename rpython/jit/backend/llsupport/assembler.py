@@ -366,10 +366,21 @@ class BaseAssembler(object):
     @specialize.argtype(1)
     def _inject_debugging_code(self, expected_inverted_guards, looptoken, operations, tp, token, uuid):
         if self._debug or jl.jitlog_enabled():
+            from rpython.jit.metainterp.pyjitpl import PEELED_LOOP_STR
             current_guard_idx = 0
             newoperations = []
             self._append_debugging_code_head(newoperations, tp, token, uuid)
+            seen_peeled_loop = 0
             for op in operations:
+                # peeled loop: restart the guard idx counter.
+                if op.getopnum() == rop.JIT_DEBUG:
+                    seen_peeled_loop += 1
+                    # pypy only peels loops once.
+                    # since the loops are effectively copied,
+                    # we need to restart what guards are expected to be inverted
+                    if seen_peeled_loop == 1:
+                        current_guard_idx = 0
+
                 opnum = op.getopnum()
                 if opnum == rop.JUMP or opnum == rop.FINISH:
                     self._append_debugging_code(newoperations, 'j', token,

@@ -2183,6 +2183,18 @@ class MIFrame(object):
 
 # ____________________________________________________________
 
+from rpython.rtyper.lltypesystem import rstr
+from rpython.jit.metainterp.resoperation import InputArgRef
+def alloc_string(string):
+    s = rstr.mallocstr(len(string))
+    for i in range(len(string)):
+        s.chars[i] = string[i]
+    s_box = InputArgRef(lltype.cast_opaque_ptr(llmemory.GCREF, s))
+    return s_box
+from rpython.jit.metainterp.executor import wrap_constant
+# so that the trace profiler analyzer can tell where the unrolled loop starts.
+PEELED_LOOP_STR = wrap_constant(alloc_string("peeled loop").getref_base())
+
 class MetaInterpStaticData(object):
     logger_noopt = None
     logger_ops = None
@@ -2215,19 +2227,8 @@ class MetaInterpStaticData(object):
         self._addr2name_keys = []
         self._addr2name_values = []
 
-        from rpython.rtyper.lltypesystem import rstr
-        from rpython.jit.metainterp.resoperation import InputArgRef
-        def alloc_string(string):
-            s = rstr.mallocstr(len(string))
-            for i in range(len(string)):
-                s.chars[i] = string[i]
-            s_box = InputArgRef(lltype.cast_opaque_ptr(llmemory.GCREF, s))
-            return s_box
-        from rpython.jit.metainterp.executor import wrap_constant
-        # so that the trace profiler analyzer can tell where the unrolled loop starts.
-        str_box = wrap_constant(alloc_string("peeled loop").getref_base())
-        self.peeled_loop_str = str_box
-
+        self.peeled_loop_str = PEELED_LOOP_STR
+        
         compile.make_and_attach_done_descrs([self, cpu])
 
     def _freeze_(self):
@@ -2612,7 +2613,7 @@ class MetaInterp(object):
                     print("SUCCESFULLY INVERTED A GUARD %d" % (to_check_guards_idx))
                     if not previously_inverted:
                         print("BAIL, newly seen inverted guard")
-                        self.jitdriver_sd.warmstate.set_param_shapefile("empty")
+                        self.jitdriver_sd.warmstate.set_param_shapefile("profile")
                     return 
             else:
                 # it's an invertible guard, this means it's truly not conforming, so just bail.

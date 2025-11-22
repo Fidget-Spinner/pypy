@@ -50,7 +50,9 @@ class OptSimplify(Optimization):
         pass
 
     def optimize_GUARD_FUTURE_CONDITION(self, op):
+        from rpython.jit.metainterp.resoperation import ResOperation
         self.optimizer.notice_guard_future_condition(op)
+        return self.emit(ResOperation(rop.JIT_DEBUG, [self.optimizer.metainterp_sd.peeled_loop_str]))
 
 dispatch_opt = make_dispatcher_method(OptSimplify, 'optimize_',
                                       default=OptSimplify.emit)

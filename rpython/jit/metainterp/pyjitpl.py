@@ -2215,6 +2215,19 @@ class MetaInterpStaticData(object):
         self._addr2name_keys = []
         self._addr2name_values = []
 
+        from rpython.rtyper.lltypesystem import rstr
+        from rpython.jit.metainterp.resoperation import InputArgRef
+        def alloc_string(string):
+            s = rstr.mallocstr(len(string))
+            for i in range(len(string)):
+                s.chars[i] = string[i]
+            s_box = InputArgRef(lltype.cast_opaque_ptr(llmemory.GCREF, s))
+            return s_box
+        from rpython.jit.metainterp.executor import wrap_constant
+        # so that the trace profiler analyzer can tell where the unrolled loop starts.
+        str_box = wrap_constant(alloc_string("peeled loop").getref_base())
+        self.peeled_loop_str = str_box
+
         compile.make_and_attach_done_descrs([self, cpu])
 
     def _freeze_(self):

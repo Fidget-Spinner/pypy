@@ -2226,8 +2226,6 @@ class MetaInterpStaticData(object):
 
         self._addr2name_keys = []
         self._addr2name_values = []
-
-        self.peeled_loop_str = PEELED_LOOP_STR
         
         compile.make_and_attach_done_descrs([self, cpu])
 
@@ -3042,6 +3040,8 @@ class MetaInterp(object):
         # generate a dummy guard just before the JUMP so that unroll can use it
         # when it's creating artificial guards.
         self.generate_guard(rop.GUARD_FUTURE_CONDITION)
+
+        self.history.record(rop.JIT_DEBUG, [PEELED_LOOP_STR], None)
 
         assert len(self.virtualref_boxes) == 0, "missing virtual_ref_finish()?"
         # Called whenever we reach the 'loop_header' hint.

@@ -132,7 +132,18 @@ assert encode_varint_signed(tag(TAGINT, SMALL_INT_START), []) <= 4
 assert encode_varint_signed(tag(TAGINT, SMALL_INT_STOP - 1), []) <= 4
 
 class BaseTrace(object):
-    pass
+    def __init__(self):
+        self.guard_count = 0        
+        self.inverted_guard_idxes = []
+
+    def notify_guard(self):
+        self.guard_count += 1
+    
+    def guard_idx(self):
+        return self.guard_count
+
+    def notify_inverted_guard(self, idx):
+        self.inverted_guard_idxes.append(idx)
 
 SNAPSHOT_PREV_NEEDS_PATCHING = -3
 SNAPSHOT_PREV_NONE = -2
@@ -249,6 +260,7 @@ def update_liveranges(snapshot_index, trace, index, liveranges):
 class TraceIterator(BaseTrace):
     def __init__(self, trace, start, end, force_inputargs=None,
                  metainterp_sd=None):
+        BaseTrace.__init__(self)
         self.trace = trace
         self.metainterp_sd = metainterp_sd
         self.all_descr_len = len(metainterp_sd.all_descrs)
@@ -407,6 +419,7 @@ class TraceIterator(BaseTrace):
 
 class CutTrace(BaseTrace):
     def __init__(self, trace, start, count, index, inputargs):
+        BaseTrace.__init__(self)
         self.trace = trace
         self.start = start
         self.inputargs = inputargs
@@ -469,6 +482,7 @@ class Trace(BaseTrace):
     _deadranges = (-1, None)
 
     def __init__(self, max_num_inputargs, metainterp_sd):
+        BaseTrace.__init__(self)        
         self.metainterp_sd = metainterp_sd
         self._ops = ['\x00'] * INIT_SIZE
         make_sure_not_resized(self._ops)
@@ -499,17 +513,6 @@ class Trace(BaseTrace):
         self._start = max_num_inputargs
         self._pos = max_num_inputargs
         self.tag_overflow = False
-        self.guard_count = 0
-        self.inverted_guard_idxes = []
-
-    def notify_guard(self):
-        self.guard_count += 1
-    
-    def guard_idx(self):
-        return self.guard_count
-
-    def notify_inverted_guard(self, idx):
-        self.inverted_guard_idxes.append(idx)
 
     def set_inputargs(self, inputargs):
         self.inputargs = inputargs

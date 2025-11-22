@@ -430,15 +430,13 @@ class WarmEnterState(object):
         from rpython.jit.metainterp.optimizeopt import ALL_OPTS_DICT
         # Ken Jin: do not eliminate guards when we're in profiling mode,
         # as we want to use them to guide the trace.
-        copy = {}
-        for k, v in self.enable_opts.items():
-            copy[k] = v
+        copy = ALL_OPTS_DICT.copy()
         if 'rewrite' in copy:
             del copy['rewrite']
         self.enable_opts = copy
         if shapefile == 'empty':
             self.shape_guide = ListOrDictOrStr(ListOrDictOrStr.NONE, [], {}, "")
-            self.enable_opts = ALL_OPTS_DICT
+            self.enable_opts = ALL_OPTS_DICT.copy()
             return
         if shapefile == 'profile':
             self.shape_guide = ListOrDictOrStr(ListOrDictOrStr.LIST, [], {}, "")
@@ -455,7 +453,7 @@ class WarmEnterState(object):
             os.close(f)
         self.shape_guide = res
         if "enable_opt" == split[1]:
-            self.enable_opts = ALL_OPTS_DICT
+            self.enable_opts = ALL_OPTS_DICT.copy()
 
     def set_param_shape_guide(self, value):
         return

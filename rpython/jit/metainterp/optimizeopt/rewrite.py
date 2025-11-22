@@ -709,7 +709,6 @@ class OptRewrite(Optimization):
 
     def optimize_GUARD_FUTURE_CONDITION(self, op):
         self.optimizer.notice_guard_future_condition(op)
-        return self.emit(ResOperation(rop.JIT_DEBUG, [self.optimizer.metainterp_sd.peeled_loop_str]))
     
     def _optimize_CALL_INT_PY_DIV(self, op):
         from rpython.jit.metainterp.optimizeopt.intutils import MININT

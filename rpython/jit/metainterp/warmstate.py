@@ -446,14 +446,15 @@ class WarmEnterState(object):
         import pypy.module._pypyjson.interp_decoder as mod     
         import os
         assert isinstance(shapefile, str)
-        f = os.open(shapefile, os.O_RDONLY, 0644)
+        split = shapefile.split(':')
+        f = os.open(split[0], os.O_RDONLY, 0644)
         contents = os.read(f, 160000000)
         try:
             res = Decoder(contents).parse_array()
         finally:
             os.close(f)
         self.shape_guide = res
-        if "enable_opt" == shapefile.split(':')[1].strip():
+        if "enable_opt" == split[1]:
             self.enable_opts = ALL_OPTS_DICT
 
     def set_param_shape_guide(self, value):

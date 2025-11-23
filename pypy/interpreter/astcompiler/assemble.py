@@ -200,11 +200,13 @@ class Block(object):
             i += instr.size()
         return i
 
-    def get_code(self, code):
+    def get_code(self, code, instr_is_jump_target):
         """Encode the instructions in this block into bytecode."""
         startsize = code.getlength()
+        instr_is_jump_target[startsize] = 1
         for instr in self.instructions:
             instr.encode(code)
+        instr_is_jump_target.extend([0] * self.code_size())
         assert code.getlength() == startsize + self.code_size()
         assert code.getlength() & 1 == 0
 
@@ -630,9 +632,10 @@ class PythonCodeMaker(ast.ASTVisitor):
 
     def _build_code(self, blocks, size):
         bytecode = rstring.StringBuilder(size)
+        instr_is_jump_target = [1]
         for block in blocks:
-            block.get_code(bytecode)
-        return bytecode.build()
+            block.get_code(bytecode, instr_is_jump_target)
+        return bytecode.build(), instr_is_jump_target
 
     def jump_thread(self, blocks):
         for block in blocks:
@@ -747,7 +750,7 @@ class PythonCodeMaker(ast.ASTVisitor):
         cell_names = _list_from_dict(self.cell_vars)
         free_names = _list_from_dict(self.free_vars, len(cell_names))
         flags = self._get_code_flags()
-        bytecode = self._build_code(blocks, size)
+        bytecode, instr_is_jump_target = self._build_code(blocks, size)
         # (Only) inherit compilerflags in PyCF_MASK
         flags |= (self.compile_info.flags & consts.PyCF_MASK)
         if not we_are_translated():
@@ -770,7 +773,9 @@ class PythonCodeMaker(ast.ASTVisitor):
                       positions,
                       free_names,
                       cell_names,
-                      self.compile_info.hidden_applevel)
+                      instr_is_jump_target,
+                      self.compile_info.hidden_applevel,
+                      )
 
     def duplicate_exits_without_lineno(self, blocks):
         from pypy.interpreter.astcompiler.codegen import view

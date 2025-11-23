@@ -100,7 +100,7 @@ class PyCode(eval.Code):
                           "co_names_w[*]", "co_nlocals",
                           "co_stacksize", "co_varnames[*]",
                           "_args_as_cellvars[*]",
-                          "co_linetable",
+                          "co_linetable", "instr_is_jump_target",
                           "w_globals?",
                           "cell_families[*]"]
 
@@ -108,9 +108,12 @@ class PyCode(eval.Code):
                      nlocals, stacksize, flags,
                      code, consts, names, varnames, filename,
                      name, qualname, firstlineno, linetable, freevars, cellvars,
+                     instr_is_jump_target=None,
                      hidden_applevel=False, magic=default_magic):
         """Initialize a new code object from parameters given by
         the pypy compiler"""
+        if instr_is_jump_target is None:
+            instr_is_jump_target = []
         self.space = space
         eval.Code.__init__(self, name)
         assert nlocals >= 0
@@ -144,6 +147,7 @@ class PyCode(eval.Code):
         # here. if a frame is run in that globals object, it does not need to
         # store it at all
         self.w_globals = None
+        self.instr_is_jump_target = instr_is_jump_target
         self.hidden_applevel = hidden_applevel
         self.magic = magic
         self._signature = make_signature(self)

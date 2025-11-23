@@ -77,6 +77,8 @@ pypyjitdriver = PyPyJitDriver(get_printable_location = get_printable_location,
                               name='pypyjit',
                               is_recursive=True)
 
+BLOCK_START_SEEN = "BLOCK START SEEN"
+
 class __extend__(PyFrame):
 
     def dispatch(self, pycode, next_instr, ec):
@@ -91,6 +93,9 @@ class __extend__(PyFrame):
                 co_code = pycode.co_code
                 self.valuestackdepth = hint(self.valuestackdepth, promote=True)
                 next_instr = self.handle_bytecode(co_code, next_instr, ec)
+                if jit.we_are_jitted():
+                    if pycode.instr_is_jump_target[next_instr]:
+                        jit.jit_debug(BLOCK_START_SEEN)                
                 is_being_profiled = self.get_is_being_profiled()
         except Yield:
             w_result = self.popvalue()

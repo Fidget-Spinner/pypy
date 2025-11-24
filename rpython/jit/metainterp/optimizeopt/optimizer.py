@@ -1,14 +1,14 @@
 from rpython.jit.metainterp import jitprof, resume, compile
 from rpython.jit.metainterp.executor import execute_nonspec_const
 from rpython.jit.metainterp.history import (
-    Const, ConstInt, CONST_NULL, new_ref_dict)
+    Const, ConstInt, CONST_NULL, new_ref_dict, JitCellToken)
 from rpython.jit.metainterp.optimizeopt.intutils import IntBound
 from rpython.jit.metainterp.optimizeopt.util import (
     make_dispatcher_method, get_box_replacement)
 from rpython.jit.metainterp.optimizeopt.bridgeopt import (
     deserialize_optimizer_knowledge)
 from rpython.jit.metainterp.resoperation import (
-    rop, AbstractResOp, GuardResOp, OpHelpers)
+    rop, AbstractResOp, GuardResOp, OpHelpers, ResOperation)
 from .info import getrawptrinfo, getptrinfo
 from rpython.jit.metainterp.optimizeopt import info
 from rpython.jit.metainterp.optimize import InvalidLoop
@@ -253,6 +253,8 @@ class Optimizer(Optimization):
 
         self.can_replace_guards = True
 
+        self.control_flow_points = []
+        
         self.set_optimizations(optimizations)
         self.setup()
         if have_debug_prints_for("jit-log-intbounds"):
@@ -292,6 +294,20 @@ class Optimizer(Optimization):
 
     def notice_guard_future_condition(self, op):
         self.patchguardop = op
+
+    def notice_control_flow_point(self, op):
+        from rpython.jit.metainterp.history import TargetToken
+        from rpython.jit.metainterp.compile import make_jitcell_token
+        if self.optunroll:
+            live_boxes = op.getarglist()
+            state = self.optunroll.get_virtual_state(live_boxes)
+            jitcell = make_jitcell_token(self.optimizer.jitdriver_sd)
+            tt = TargetToken(targeting_jitcell_token=None, original_jitcell_token=jitcell)
+            tt.virtual_state = state
+            newop = ResOperation(rop.LABEL, live_boxes, tt)
+            self.control_flow_points.append(tt)            
+            return newop
+        return None
 
     def cant_replace_guards(self):
         return CantReplaceGuards(self)

@@ -1407,6 +1407,10 @@ class RegAlloc(BaseRegalloc, VectorRegallocMixin):
         if jump_op is not None and jump_op.getdescr() is descr:
             self._compute_hint_locations_from_descr(descr)
 
+    def consider_control_flow_point(self, op):
+        # TODO
+        pass
+
     def consider_guard_not_forced_2(self, op):
         self.rm.before_call(op.getfailargs(), save_all_regs=True)
         self.xrm.before_call(op.getfailargs(), save_all_regs=True)

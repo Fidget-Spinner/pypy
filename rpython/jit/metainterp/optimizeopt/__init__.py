@@ -37,9 +37,7 @@ def build_opt_chain(enable_opts):
             if opt is not None:
                 o = opt()
                 optimizations.append(o)
-    if ('rewrite' not in enable_opts or 'virtualize' not in enable_opts or
-            'heap' not in enable_opts or 'pure' not in enable_opts):
-        optimizations.append(OptSimplify())
+    optimizations.append(OptSimplify())
     return optimizations
 
 if __name__ == '__main__':

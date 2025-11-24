@@ -443,6 +443,7 @@ def _make_execute_list():
                          rop.LOAD_FROM_GC_TABLE,
                          rop.LOAD_EFFECTIVE_ADDRESS,
                          rop.RECORD_KNOWN_RESULT,
+                         rop.CONTROL_FLOW_POINT,
                          ):      # list of opcodes never executed by pyjitpl
                 continue
             if rop._VEC_PURE_FIRST <= value <= rop._VEC_PURE_LAST:

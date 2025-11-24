@@ -915,6 +915,7 @@ _oplist = [
     '_FINAL_LAST',
 
     'LABEL/*d/n',
+    'CONTROL_FLOW_POINT/*d/n',    
 
     '_GUARD_FIRST',
     '_GUARD_FOLDABLE_FIRST',

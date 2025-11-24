@@ -644,8 +644,10 @@ class VirtualState(object):
         return True
 
     def generate_guards(self, other, boxes, runtime_boxes, optimizer, force_boxes=False):
-        assert (len(self.state) == len(other.state) == len(boxes) ==
-                len(runtime_boxes))
+        if not (len(self.state) == len(other.state) == len(boxes) ==
+                len(runtime_boxes)):
+            raise VirtualStatesCantMatch(
+                        'The boxes of the virtual state do not match.')            
         state = GenerateGuardState(optimizer, force_boxes=force_boxes)
         for i in range(len(self.state)):
             self.state[i].generate_guards(other.state[i], boxes[i],

@@ -122,7 +122,7 @@ class AbstractFailDescr(AbstractDescr):
     index = -1
     final_descr = False
 
-    _attrs_ = ('adr_jump_offset', 'rd_locs', 'rd_loop_token', 'rd_vector_info')
+    _attrs_ = ('adr_jump_offset', 'rd_locs', 'rd_loop_token', 'rd_vector_info', 'all_labels')
 
     rd_vector_info = None
 
@@ -430,7 +430,8 @@ class JitCellToken(AbstractDescr):
     """
     FORCE_BRIDGE_SEGMENTING = 1 # stored in retraced_count
 
-    target_tokens = None
+    c = None
+    control_flow_tokens = None
     failed_states = None
     retraced_count = 0
     invalidated = False
@@ -447,6 +448,7 @@ class JitCellToken(AbstractDescr):
     def __init__(self):
         # For memory management of assembled loops
         self._keepalive_jitcell_tokens = {}      # set of other JitCellToken
+        self.control_flow_tokens = []
 
     def record_jump_to(self, jitcell_token):
         assert isinstance(jitcell_token, JitCellToken)

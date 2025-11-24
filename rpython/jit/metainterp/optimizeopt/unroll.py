@@ -175,7 +175,6 @@ class UnrollOptimizer(Optimizer):
 
         self.optunroll.disable_retracing_if_max_retrace_guards(
             self._newoperations, target_token)
-
         return (UnrollInfo(target_token, label_op, extra_same_as,
                            self.quasi_immutable_deps),
                 self._newoperations)
@@ -299,6 +298,70 @@ class OptUnroll(Optimization):
             target_token, sb)
         label_op.initarglist(label_op.getarglist() + sb.used_boxes)
         return target_token
+
+    def jump_to_existing_control_flow_point(self, jump_op, label_op, runtime_boxes, force_boxes=False):
+        with self.optimizer.cant_replace_guards():
+            self._jump_to_existing_control_flow_point(jump_op, label_op, runtime_boxes, force_boxes)
+
+    def _jump_to_existing_control_flow_point(self, jump_op, label_op, runtime_boxes, force_boxes=False):
+        from rpython.jit.metainterp.optimizeopt.optimizer import FILLED_LATER_JITCELL_TOKEN
+        jitcelltoken = jump_op.getdescr()
+        assert isinstance(jitcelltoken, JitCellToken)
+        control_flow_points_token_ids = [id(x) for x in self.optimizer.control_flow_points]
+        for idx, op in enumerate(self._newoperations):
+            if not ((op.getopnum() == rop.CONTROL_FLOW_POINT) and id(op.getdescr()) in control_flow_points_token_ids):
+                continue
+            print("TRYING TO MERGE")
+            merge_point_token = op.getdescr()
+            virtual_state = self.get_virtual_state(merge_point_token)
+            args = [get_box_replacement(op) for op in merge_point_token.getarglist()]
+            for target_token in jitcelltoken.control_flow_tokens:
+                assert target_token.original_jitcell_token is not FILLED_LATER_JITCELL_TOKEN
+                target_virtual_state = target_token.virtual_state
+                if target_virtual_state is None:
+                    continue
+                try:
+                    extra_guards = target_virtual_state.generate_guards(
+                        virtual_state, args, runtime_boxes, self.optimizer,
+                        force_boxes=force_boxes)
+                    patchguardop = self.optimizer.patchguardop
+                    for guard in extra_guards.extra_guards:
+                        if isinstance(guard, GuardResOp):
+                            guard.rd_resume_position = patchguardop.rd_resume_position
+                            guard.setdescr(compile.ResumeAtPositionDescr())
+                        self.optimizer.send_extra_operation(guard)
+                except VirtualStatesCantMatch:
+                    continue
+
+                # When force_boxes == True, creating the virtual args can fail when
+                # components of the virtual state alias. If this occurs, we must
+                # recompute the virtual state as boxes will have been forced.
+                try:
+                    args, virtuals = target_virtual_state.make_inputargs_and_virtuals(
+                        args, self.optimizer, force_boxes=force_boxes)
+                except VirtualStatesCantMatch:
+                    assert force_boxes
+                    virtual_state = self.get_virtual_state(args)
+                    continue
+
+                # Success! Cut the trace short
+                self._newoperations = self._newoperations[:idx]
+                short_preamble = target_token.short_preamble
+
+                if short_preamble:
+                    extra = self.inline_short_preamble(args + virtuals, args,
+                                        short_preamble, self.optimizer.patchguardop,
+                                        target_token, label_op)
+                else:
+                    extra = []
+                self.optimizer.send_extra_operation(ResOperation(rop.JUMP,
+                                            args=args + extra,
+                                            descr=target_token))
+                print("MERGE SUCCESS")
+                return None # explicit because the return can be non-None
+
+        return self.get_virtual_state(jump_op.getarglist())
+
 
 
     def jump_to_existing_trace(self, jump_op, label_op, runtime_boxes, force_boxes=False):

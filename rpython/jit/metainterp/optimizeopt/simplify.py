@@ -1,6 +1,7 @@
 from rpython.jit.metainterp.optimizeopt.optimizer import Optimization
 from rpython.jit.metainterp.optimizeopt.util import make_dispatcher_method
-from rpython.jit.metainterp.resoperation import rop, OpHelpers
+from rpython.jit.metainterp.resoperation import rop, OpHelpers, ResOperation
+from rpython.jit.metainterp.history import Const
 
 class OptSimplify(Optimization):
     def emit(self, op):
@@ -51,6 +52,10 @@ class OptSimplify(Optimization):
 
     def optimize_GUARD_FUTURE_CONDITION(self, op):
         self.optimizer.notice_guard_future_condition(op)
+
+    def optimize_CONTROL_FLOW_POINT(self, op):
+        self.optimizer.notice_control_flow_point(op)
+        return self.emit(op)
 
 dispatch_opt = make_dispatcher_method(OptSimplify, 'optimize_',
                                       default=OptSimplify.emit)

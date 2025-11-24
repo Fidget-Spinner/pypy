@@ -82,18 +82,22 @@ class SimpleCompileData(CompileData):
     """ This represents label() ops jump with no extra info associated with
     the label
     """
-    def __init__(self, trace, resumestorage=None, call_pure_results=None,
-                 enable_opts=None):
+    def __init__(self, trace, jitcell_token, resumestorage=None, call_pure_results=None,
+                 enable_opts=None,):
         self.trace = trace
         self.resumestorage = resumestorage
         self.call_pure_results = call_pure_results
         self.enable_opts = enable_opts
+        self.jitcell_token = jitcell_token
 
     def optimize(self, metainterp_sd, jitdriver_sd, optimizations):
         from rpython.jit.metainterp.optimizeopt.optimizer import Optimizer
         opt = Optimizer(metainterp_sd, jitdriver_sd, optimizations)
-        return opt.optimize_loop(
+        res =  opt.optimize_loop(
             self.trace, self.resumestorage, self.call_pure_results)
+        if self.jitcell_token is not None:
+            self.jitcell_token.control_flow_tokens.extend(opt.control_flow_points)
+        return res
 
 class BridgeCompileData(CompileData):
     """ This represents ops() with a jump at the end that goes to some
@@ -136,8 +140,10 @@ class UnrolledLoopData(CompileData):
     def optimize(self, metainterp_sd, jitdriver_sd, optimizations):
         from rpython.jit.metainterp.optimizeopt.unroll import UnrollOptimizer
         opt = UnrollOptimizer(metainterp_sd, jitdriver_sd, optimizations)
-        return opt.optimize_peeled_loop(
+        res =  opt.optimize_peeled_loop(
             self.trace, self.celltoken, self.state, self.call_pure_results)
+        self.celltoken.control_flow_tokens.extend(opt.control_flow_points)
+        return res
 
 def show_procedures(metainterp_sd, procedure=None, error=None):
     from rpython.conftest import option
@@ -219,7 +225,7 @@ def compile_simple_loop(metainterp, greenkey, trace, runtime_args, enable_opts,
     metainterp_sd = metainterp.staticdata
     jitcell_token = make_jitcell_token(jitdriver_sd)
     call_pure_results = metainterp.call_pure_results
-    data = SimpleCompileData(trace, call_pure_results=call_pure_results,
+    data = SimpleCompileData(trace, jitcell_token, call_pure_results=call_pure_results,
                              enable_opts=enable_opts)
     try:
         loop_info, ops = data.optimize_trace(
@@ -1054,7 +1060,7 @@ def compile_trace(metainterp, resumekey, runtime_boxes, ends_with_jump=False):
                                  enable_opts=enable_opts,
                                  inline_short_preamble=inline_short_preamble)
     else:
-        data = SimpleCompileData(trace, resumestorage,
+        data = SimpleCompileData(trace, None, resumestorage,
                                  call_pure_results=call_pure_results,
                                  enable_opts=enable_opts)
     try:

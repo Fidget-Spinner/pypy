@@ -233,6 +233,66 @@ class MIFrame(object):
             offset = it.offset
         return storage
 
+
+    def get_list_of_active_boxes_simple(self, in_a_call, after_residual_call=False):
+        from rpython.jit.codewriter.liveness import decode_offset
+        from rpython.jit.codewriter.liveness import LivenessIterator
+        if in_a_call:
+            # If we are not the topmost frame, self._result_argcode contains
+            # the type of the result of the call instruction in the bytecode.
+            # We use it to clear the box that will hold the result: this box
+            # is not defined yet.
+            argcode = self._result_argcode
+            index = ord(self.bytecode[self.pc - 1])
+            if argcode == 'i':
+                self.registers_i[index] = history.CONST_FALSE
+            elif argcode == 'r':
+                self.registers_r[index] = CONST_NULL
+            elif argcode == 'f':
+                self.registers_f[index] = history.CONST_FZERO
+            self._result_argcode = '?'     # done
+        if in_a_call or after_residual_call:
+            pc = self.pc # live instruction afterwards
+        else:
+            # there needs to be a live instruction AFTER
+            pc = self.pc
+        assert ord(self.jitcode.code[pc]) == self.metainterp.staticdata.op_live
+        if not we_are_translated():
+            assert pc in self.jitcode._startpoints
+        offset = decode_offset(self.jitcode.code, pc + 1)
+        all_liveness = self.metainterp.staticdata.liveness_info
+        length_i = ord(all_liveness[offset])
+        length_r = ord(all_liveness[offset + 1])
+        length_f = ord(all_liveness[offset + 2])
+        offset += 3
+
+        start_i = 0
+        start_r = start_i + length_i
+        start_f = start_r + length_r
+        total   = start_f + length_f
+        # allocate a list of the correct size
+        storage = []
+        # fill it now
+        if length_i:
+            it = LivenessIterator(offset, length_i, all_liveness)
+            for index in it:
+                storage.append(self.registers_i[index])
+                start_i += 1
+            offset = it.offset
+        if length_r:
+            it = LivenessIterator(offset, length_r, all_liveness)
+            for index in it:
+                storage.append(self.registers_r[index])
+                start_r += 1
+            offset = it.offset
+        if length_f:
+            it = LivenessIterator(offset, length_f, all_liveness)
+            for index in it:
+                storage.append(self.registers_f[index])
+                start_f += 1
+            offset = it.offset
+        return storage
+
     def replace_active_box_in_frame(self, oldbox, newbox):
         if oldbox.type == 'i':
             count = self.jitcode.num_regs_i()
@@ -1720,6 +1780,13 @@ class MIFrame(object):
 
     @arguments("box", "box", "box", "box", "box")
     def opimpl_jit_debug(self, stringbox, arg1box, arg2box, arg3box, arg4box):
+        from pypy.module.pypyjit.interp_jit import BLOCK_START_SEEN
+        if stringbox._get_str() == BLOCK_START_SEEN:
+            live_boxes = self.metainterp.reached_block_start()
+            if live_boxes is None:
+                return
+            self.metainterp.history.record(rop.CONTROL_FLOW_POINT, live_boxes, None)
+            return
         debug_print('jit_debug:', stringbox._get_str(),
                     arg1box.getint(), arg2box.getint(),
                     arg3box.getint(), arg4box.getint())
@@ -2940,6 +3007,25 @@ class MetaInterp(object):
                 if self.cancel_count > memmgr.max_unroll_loops:
                     return True
         return False
+
+    def reached_block_start(self):
+        if len(self.framestack) == 0:
+            return
+        live_arg_boxes = self.framestack[-1].get_list_of_active_boxes_simple(False)
+        if self.jitdriver_sd.virtualizable_info is not None:
+            live_arg_boxes += self.virtualizable_boxes
+        live_arg_boxes += self.virtualref_boxes
+        duplicates = {}
+        res = []
+        # Remove constants and duplicates.
+        for i in range(len(live_arg_boxes)):
+            box = live_arg_boxes[i]
+            if isinstance(box, Const) or box in duplicates:
+                continue
+            else:
+                duplicates[box] = None
+                res.append(box)     
+        return res
 
     def reached_loop_header(self, greenboxes, redboxes):
         self.heapcache.reset() #reset_virtuals=False)

@@ -775,7 +775,7 @@ class AbstractResumeGuardDescr(ResumeDescr):
             hash = r_uint(current_object_addr_as_int(self) * 777767777 +
                           intval * 1442968193)
         #
-        increment = jitdriver_sd.warmstate.increment_trace_eagerness
+        increment = jitdriver_sd.warmstate.get_next_bridge_threshold()
         return jitcounter.tick(hash, increment)
 
     def start_compiling(self):

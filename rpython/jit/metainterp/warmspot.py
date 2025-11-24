@@ -480,7 +480,13 @@ class WarmRunnerDesc(object):
         assert CPUClass is not None
         self.opt = history.Options(**kwds)
         if no_stats:
-            stats = history.NoStats()
+            # stats = history.NoStats()
+            # KJ: enable stats always
+            stats = history.Stats(None)
+            if no_stats_history:
+                stats.set_history = lambda history: None
+                # ^^^ for test_jitiface.test_memmgr_release_all.  otherwise,
+                # stats.history attribute keeps the most recent loop alive
         else:
             stats = history.Stats(None)
             if no_stats_history:
@@ -576,7 +582,7 @@ class WarmRunnerDesc(object):
 
         def maybe_enter_jit(*args):
             try:
-                maybe_compile_and_run(state.increment_threshold, *args)
+                maybe_compile_and_run(state.get_next_loop_threshold(), *args)
             except Exception as e:
                 crash_in_jit(e)
         maybe_enter_jit._always_inline_ = True
@@ -942,7 +948,7 @@ class WarmRunnerDesc(object):
             try:
                 # maybe enter from the function's start.
                 maybe_compile_and_run(
-                    state.increment_function_threshold, *args)
+                    state.get_next_function_threshold(), *args)
                 #
                 # then run the normal portal function, i.e. the
                 # interpreter's main loop.  It might enter the jit
@@ -1129,7 +1135,7 @@ class WarmRunnerDesc(object):
             key = jd, funcname
             if key not in closures:
                 closures[key] = make_closure(jd, 'set_param_' + funcname,
-                                             funcname == 'enable_opts' or funcname == 'shapefile')
+                                             funcname == 'enable_opts' or funcname == 'counterfile')
             op.opname = 'direct_call'
             op.args[:3] = [closures[key]]
 

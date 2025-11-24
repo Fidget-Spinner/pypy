@@ -895,7 +895,7 @@ class Stats(object):
         self.locations.append(loc)
 
     def name_for_new_loop(self):
-        return 'Loop #%d' % len(self.loops)
+        return 'Loop #%d' % self.compiled_count
 
     def add_new_loop(self, loop):
         self.loops.append(loop)

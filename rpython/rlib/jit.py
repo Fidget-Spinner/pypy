@@ -602,7 +602,7 @@ PARAMETERS = {'threshold': 1039, # just above 1024, prime
               'vec': 0,
               'vec_all': 0,
               'vec_cost': 0,
-              'shapefile': '',
+              'counterfile': 'empty',
               }
 unroll_parameters = unrolling_iterable(PARAMETERS.items())
 
@@ -857,11 +857,11 @@ def set_user_param(driver, text):
         value = parts[1]
         if name == 'enable_opts':
             set_param(driver, 'enable_opts', value)
-        elif name == 'shapefile':
-            set_param(driver, 'shapefile', value)
+        elif name == 'counterfile':
+            set_param(driver, 'counterfile', value)
         else:
             for name1, _ in unroll_parameters:
-                if name1 == name and name1 != 'enable_opts' and name1 != 'shapefile':
+                if name1 == name and name1 != 'enable_opts' and name1 != 'counterfile':
                     try:
                         ivalue = int(value)
                     except ValueError:
@@ -1031,7 +1031,7 @@ class ExtSetParam(ExtRegistryEntry):
     def compute_result_annotation(self, s_driver, s_name, s_value):
         from rpython.annotator import model as annmodel
         assert s_name.is_constant()
-        if s_name.const == 'enable_opts' or s_name.const == 'shapefile':
+        if s_name.const == 'enable_opts' or s_name.const == 'counterfile':
             assert annmodel.SomeString(can_be_None=True).contains(s_value)
         else:
             assert (s_value == annmodel.s_None or
@@ -1046,7 +1046,7 @@ class ExtSetParam(ExtRegistryEntry):
         hop.exception_cannot_occur()
         driver = hop.inputarg(lltype.Void, arg=0)
         name = hop.args_s[1].const
-        if name == 'enable_opts' or name == 'shapefile':
+        if name == 'enable_opts' or name == 'counterfile':
             repr = string_repr
         else:
             repr = lltype.Signed

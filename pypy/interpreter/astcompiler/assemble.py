@@ -36,6 +36,7 @@ class Instruction(object):
             assert arg == 0
         self.position_info = position_info
         self.jump = None
+        self.is_jump_target = False
 
     def copy(self):
         res = Instruction(self.opcode, self.arg, self.position_info)
@@ -203,10 +204,26 @@ class Block(object):
     def get_code(self, code, instr_is_jump_target):
         """Encode the instructions in this block into bytecode."""
         startsize = code.getlength()
-        instr_is_jump_target[startsize] = 1
-        for instr in self.instructions:
+        if self.code_size() == 0:
+            return
+        instr_is_jump_target.extend([False] * self.code_size())
+        running_offset = 0
+        # first instruction of a block is always a jump target
+        instr_is_jump_target[startsize] = True
+        for i, instr in enumerate(self.instructions):
             instr.encode(code)
-        instr_is_jump_target.extend([0] * self.code_size())
+            if instr.is_jump_target:
+                instr_is_jump_target[startsize + running_offset] = True
+            opcode = instr.opcode
+            if (opcode == ops.JUMP_IF_FALSE_OR_POP
+                or opcode == ops.JUMP_IF_TRUE_OR_POP
+                or opcode == ops.POP_JUMP_IF_FALSE
+                or opcode == ops.POP_JUMP_IF_TRUE):
+                if (i + 1) < len(self.instructions):
+                    # The following instruction is a jump target too (technically).
+                    self.instructions[i+1].is_jump_target = True                 
+            running_offset += instr.size()
+        assert running_offset == self.code_size()
         assert code.getlength() == startsize + self.code_size()
         assert code.getlength() & 1 == 0
 
@@ -232,6 +249,7 @@ class Block(object):
                 assert target is not None
             opcode = instr.opcode
             target_instr = target.instructions[0]
+            target_instr.is_jump_target = True
             target_lineno = target_instr.position_info[0]
             target_opcode = target_instr.opcode
             if ((target_opcode == ops.JUMP_ABSOLUTE or target_opcode == ops.JUMP_FORWARD) and
@@ -632,7 +650,7 @@ class PythonCodeMaker(ast.ASTVisitor):
 
     def _build_code(self, blocks, size):
         bytecode = rstring.StringBuilder(size)
-        instr_is_jump_target = [1]
+        instr_is_jump_target = []
         for block in blocks:
             block.get_code(bytecode, instr_is_jump_target)
         return bytecode.build(), instr_is_jump_target

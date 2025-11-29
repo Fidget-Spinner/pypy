@@ -1781,11 +1781,15 @@ class MIFrame(object):
     @arguments("box", "box", "box", "box", "box")
     def opimpl_jit_debug(self, stringbox, arg1box, arg2box, arg3box, arg4box):
         from pypy.module.pypyjit.interp_jit import BLOCK_START_SEEN
+        from rpython.jit.metainterp.optimizeopt.unroll import OptUnroll
+        from rpython.jit.metainterp.compile import make_jitcell_token
         if stringbox._get_str() == BLOCK_START_SEEN:
             live_boxes = self.metainterp.reached_block_start()
             if live_boxes is None:
                 return
-            self.metainterp.history.record(rop.CONTROL_FLOW_POINT, live_boxes, None)
+            jitcell = make_jitcell_token(self.metainterp.jitdriver_sd)
+            tt = TargetToken(targeting_jitcell_token=None, original_jitcell_token=jitcell)
+            self.metainterp.history.record(rop.CONTROL_FLOW_POINT, live_boxes, None, descr=tt)
             return
         debug_print('jit_debug:', stringbox._get_str(),
                     arg1box.getint(), arg2box.getint(),

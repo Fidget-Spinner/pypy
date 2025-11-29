@@ -1359,7 +1359,7 @@ class RegAlloc(BaseRegalloc, VectorRegallocMixin):
     def consider_label(self, op):
         descr = op.getdescr()
         assert isinstance(descr, TargetToken)
-        inputargs = op.getarglist()
+        inputargs = [arg for arg in op.getarglist() if not isinstance(arg, Const)]
         arglocs = [None] * len(inputargs)
         #
         # we use force_spill() on the boxes that are not going to be really
@@ -1407,9 +1407,9 @@ class RegAlloc(BaseRegalloc, VectorRegallocMixin):
         if jump_op is not None and jump_op.getdescr() is descr:
             self._compute_hint_locations_from_descr(descr)
 
-    def consider_control_flow_point(self, op):
-        # TODO
-        pass
+    consider_control_flow_point = consider_label
+    # def consider_control_flow_point(self, op):
+        # pass
 
     def consider_guard_not_forced_2(self, op):
         self.rm.before_call(op.getfailargs(), save_all_regs=True)

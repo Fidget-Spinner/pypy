@@ -65,6 +65,14 @@ class __extend__(pyframe.PyFrame):
             while True:
                 assert next_instr & 1 == 0
                 next_instr = self.handle_bytecode(co_code, next_instr, ec)
+                from pypy.module.pypyjit.interp_jit import BLOCK_START_SEEN
+                from pypy.tool.stdlib_opcode import bytecode_spec
+                opcodedesc = bytecode_spec.opcodedesc
+                next_inst_opcode = ord(co_code[next_instr])
+                if (pycode.instr_is_jump_target[next_instr]
+                    and (next_inst_opcode != opcodedesc.FOR_ITER.index)
+                    and (next_inst_opcode != opcodedesc.JUMP_ABSOLUTE.index)):
+                    jit.jit_debug(BLOCK_START_SEEN)
         except ExitFrame:
             return self.popvalue()
 

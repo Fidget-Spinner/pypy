@@ -210,6 +210,14 @@ class UnrollOptimizer(Optimizer):
             return info, self._newoperations[:]
         if vs is None:
             return info, self._newoperations[:]
+        try:
+            vs = self.optunroll.jump_to_existing_control_flow_point(jump_op, None, runtime_boxes,
+                                             force_boxes=False)
+        except InvalidLoop:
+            self.jump_to_preamble(cell_token, jump_op)
+            return info, self._newoperations[:]
+        if vs is None:
+            return info, self._newoperations[:]
         warmrunnerdescr = self.metainterp_sd.warmrunnerdesc
         limit = warmrunnerdescr.memory_manager.retrace_limit
         if cell_token.retraced_count < limit:
@@ -304,19 +312,16 @@ class OptUnroll(Optimization):
             self._jump_to_existing_control_flow_point(jump_op, label_op, runtime_boxes, force_boxes)
 
     def _jump_to_existing_control_flow_point(self, jump_op, label_op, runtime_boxes, force_boxes=False):
-        from rpython.jit.metainterp.optimizeopt.optimizer import FILLED_LATER_JITCELL_TOKEN
         jitcelltoken = jump_op.getdescr()
         assert isinstance(jitcelltoken, JitCellToken)
-        control_flow_points_token_ids = [id(x) for x in self.optimizer.control_flow_points]
-        for idx, op in enumerate(self._newoperations):
-            if not ((op.getopnum() == rop.CONTROL_FLOW_POINT) and id(op.getdescr()) in control_flow_points_token_ids):
+        for idx, op in enumerate(self.optimizer._newoperations):
+            if not ((op.getopnum() == rop.CONTROL_FLOW_POINT) and op.getdescr() in self.optimizer.control_flow_points):
                 continue
             print("TRYING TO MERGE")
-            merge_point_token = op.getdescr()
-            virtual_state = self.get_virtual_state(merge_point_token)
-            args = [get_box_replacement(op) for op in merge_point_token.getarglist()]
+            virtual_state = self.get_virtual_state(op.getarglist())
+            args = [get_box_replacement(arg) for arg in op.getarglist()]
             for target_token in jitcelltoken.control_flow_tokens:
-                assert target_token.original_jitcell_token is not FILLED_LATER_JITCELL_TOKEN
+                assert isinstance(target_token, TargetToken)
                 target_virtual_state = target_token.virtual_state
                 if target_virtual_state is None:
                     continue
@@ -345,7 +350,7 @@ class OptUnroll(Optimization):
                     continue
 
                 # Success! Cut the trace short
-                self._newoperations = self._newoperations[:idx]
+                self.optimizer._newoperations = self.optimizer._newoperations[:idx]
                 short_preamble = target_token.short_preamble
 
                 if short_preamble:
@@ -354,7 +359,7 @@ class OptUnroll(Optimization):
                                         target_token, label_op)
                 else:
                     extra = []
-                self.optimizer.send_extra_operation(ResOperation(rop.JUMP,
+                self.optimizer.emit(ResOperation(rop.JUMP,
                                             args=args + extra,
                                             descr=target_token))
                 print("MERGE SUCCESS")

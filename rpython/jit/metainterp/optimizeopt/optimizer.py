@@ -266,6 +266,7 @@ class Optimizer(Optimization):
 
 
     def set_optimizations(self, optimizations):
+        from rpython.jit.metainterp.optimizeopt.simplify import OptSimplify
         if optimizations:
             self.first_optimization = optimizations[0]
             for i in range(1, len(optimizations)):
@@ -279,7 +280,7 @@ class Optimizer(Optimization):
             optimizations = []
             self.first_optimization = self
 
-        self.optimizations = optimizations
+        self.optimizations = optimizations + [OptSimplify()]
 
     def optimize_loop(self, trace, resumestorage, call_pure_results):
         traceiter = trace.get_iter()
@@ -297,17 +298,14 @@ class Optimizer(Optimization):
 
     def notice_control_flow_point(self, op):
         from rpython.jit.metainterp.history import TargetToken
-        from rpython.jit.metainterp.compile import make_jitcell_token
-        if self.optunroll:
-            live_boxes = op.getarglist()
-            state = self.optunroll.get_virtual_state(live_boxes)
-            jitcell = make_jitcell_token(self.optimizer.jitdriver_sd)
-            tt = TargetToken(targeting_jitcell_token=None, original_jitcell_token=jitcell)
-            tt.virtual_state = state
-            newop = ResOperation(rop.LABEL, live_boxes, tt)
-            self.control_flow_points.append(tt)            
-            return newop
-        return None
+        from rpython.jit.metainterp.optimizeopt.unroll import OptUnroll
+        live_boxes = op.getarglist()
+        state = OptUnroll.get_virtual_state(self, live_boxes)
+        tt = op.getdescr()
+        assert isinstance(tt, TargetToken)
+        tt.virtual_state = state
+        self.control_flow_points.append(tt)            
+        return tt
 
     def cant_replace_guards(self):
         return CantReplaceGuards(self)

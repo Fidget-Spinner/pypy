@@ -83,19 +83,20 @@ class SimpleCompileData(CompileData):
     the label
     """
     def __init__(self, trace, jitcell_token, resumestorage=None, call_pure_results=None,
-                 enable_opts=None,):
+                 enable_opts=None, is_bridge=False):
         self.trace = trace
         self.resumestorage = resumestorage
         self.call_pure_results = call_pure_results
         self.enable_opts = enable_opts
         self.jitcell_token = jitcell_token
+        self.is_bridge = is_bridge
 
     def optimize(self, metainterp_sd, jitdriver_sd, optimizations):
         from rpython.jit.metainterp.optimizeopt.optimizer import Optimizer
         opt = Optimizer(metainterp_sd, jitdriver_sd, optimizations)
         res =  opt.optimize_loop(
             self.trace, self.resumestorage, self.call_pure_results)
-        if self.jitcell_token is not None:
+        if self.jitcell_token is not None and not self.is_bridge:
             self.jitcell_token.control_flow_tokens.extend(opt.control_flow_points)
         return res
 
@@ -1062,7 +1063,7 @@ def compile_trace(metainterp, resumekey, runtime_boxes, ends_with_jump=False):
     else:
         data = SimpleCompileData(trace, None, resumestorage,
                                  call_pure_results=call_pure_results,
-                                 enable_opts=enable_opts)
+                                 enable_opts=enable_opts, is_bridge=True)
     try:
         info, newops = data.optimize_trace(
             metainterp_sd, jitdriver_sd, metainterp.box_names_memo)

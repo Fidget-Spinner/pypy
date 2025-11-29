@@ -85,6 +85,7 @@ class __extend__(PyFrame):
         self = hint(self, access_directly=True)
         next_instr = r_uint(next_instr)
         is_being_profiled = self.get_is_being_profiled()
+        from pypy.tool.stdlib_opcode import bytecode_spec        
         try:
             while True:
                 pypyjitdriver.jit_merge_point(ec=ec,
@@ -93,9 +94,12 @@ class __extend__(PyFrame):
                 co_code = pycode.co_code
                 self.valuestackdepth = hint(self.valuestackdepth, promote=True)
                 next_instr = self.handle_bytecode(co_code, next_instr, ec)
-                if jit.we_are_jitted():
-                    if pycode.instr_is_jump_target[next_instr]:
-                        jit.jit_debug(BLOCK_START_SEEN)                
+                next_inst_opcode = ord(co_code[next_instr])
+                opcodedesc = bytecode_spec.opcodedesc
+                if (pycode.instr_is_jump_target[next_instr]
+                    and (next_inst_opcode != opcodedesc.FOR_ITER.index)
+                    and (next_inst_opcode != opcodedesc.JUMP_ABSOLUTE.index)):
+                    jit.jit_debug(BLOCK_START_SEEN)                
                 is_being_profiled = self.get_is_being_profiled()
         except Yield:
             w_result = self.popvalue()

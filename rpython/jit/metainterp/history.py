@@ -496,6 +496,7 @@ class TargetToken(AbstractDescr):
 
         self.virtual_state = None
         self.short_preamble = None
+        self.args = None
 
     def repr_of_descr(self):
         return 'TargetToken(%d)' % compute_unique_id(self)

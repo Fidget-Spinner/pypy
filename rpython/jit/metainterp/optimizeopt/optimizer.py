@@ -298,13 +298,12 @@ class Optimizer(Optimization):
 
     def notice_control_flow_point(self, op):
         from rpython.jit.metainterp.history import TargetToken
-        from rpython.jit.metainterp.optimizeopt.unroll import OptUnroll
-        live_boxes = op.getarglist()
-        state = OptUnroll.get_virtual_state(self, live_boxes)
         tt = op.getdescr()
         assert isinstance(tt, TargetToken)
-        tt.virtual_state = state
-        self.control_flow_points.append(tt)            
+        tt = TargetToken(targeting_jitcell_token=None, original_jitcell_token=tt.original_jitcell_token)
+        tt.args = op.getarglist()
+        self.control_flow_points.append(tt)
+        op.setdescr(tt)
         return tt
 
     def cant_replace_guards(self):

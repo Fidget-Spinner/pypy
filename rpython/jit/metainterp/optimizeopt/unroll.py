@@ -211,12 +211,15 @@ class UnrollOptimizer(Optimizer):
         if vs is None:
             return info, self._newoperations[:]
         try:
-            vs = self.optunroll.jump_to_existing_control_flow_point(jump_op, None, runtime_boxes,
+            vs = self.optunroll.jump_to_existing_control_flow_point(jump_op, None,
                                              force_boxes=False)
         except InvalidLoop:
             self.jump_to_preamble(cell_token, jump_op)
             return info, self._newoperations[:]
         if vs is None:
+            jump_op = self._newoperations[-1]
+            info.label_op = jump_op.getdescr()
+            info.jump_op = jump_op
             return info, self._newoperations[:]
         warmrunnerdescr = self.metainterp_sd.warmrunnerdesc
         limit = warmrunnerdescr.memory_manager.retrace_limit
@@ -307,27 +310,30 @@ class OptUnroll(Optimization):
         label_op.initarglist(label_op.getarglist() + sb.used_boxes)
         return target_token
 
-    def jump_to_existing_control_flow_point(self, jump_op, label_op, runtime_boxes, force_boxes=False):
+    def jump_to_existing_control_flow_point(self, jump_op, label_op, force_boxes=False):
         with self.optimizer.cant_replace_guards():
-            self._jump_to_existing_control_flow_point(jump_op, label_op, runtime_boxes, force_boxes)
+            self._jump_to_existing_control_flow_point(jump_op, label_op, force_boxes)
 
-    def _jump_to_existing_control_flow_point(self, jump_op, label_op, runtime_boxes, force_boxes=False):
+    def _jump_to_existing_control_flow_point(self, jump_op, label_op, force_boxes=False):
         jitcelltoken = jump_op.getdescr()
         assert isinstance(jitcelltoken, JitCellToken)
         for idx, op in enumerate(self.optimizer._newoperations):
             if not ((op.getopnum() == rop.CONTROL_FLOW_POINT) and op.getdescr() in self.optimizer.control_flow_points):
                 continue
-            print("TRYING TO MERGE")
-            virtual_state = self.get_virtual_state(op.getarglist())
-            args = [get_box_replacement(arg) for arg in op.getarglist()]
+            args_list = op.getarglist()
+            virtual_state = self.get_virtual_state(args_list)
+            args = [get_box_replacement(arg) for arg in args_list]
             for target_token in jitcelltoken.control_flow_tokens:
                 assert isinstance(target_token, TargetToken)
-                target_virtual_state = target_token.virtual_state
-                if target_virtual_state is None:
+                if target_token.args is None:
                     continue
+                if target_token.virtual_state is None:
+                    target_token.virtual_state = self.get_virtual_state([a for a in target_token.args if not isinstance(a, Const)])
+                target_virtual_state = target_token.virtual_state
+                # print("TRYING TO MERGE %d" % idx)
                 try:
                     extra_guards = target_virtual_state.generate_guards(
-                        virtual_state, args, runtime_boxes, self.optimizer,
+                        virtual_state, args, [None] * len(args), self.optimizer,
                         force_boxes=force_boxes)
                     patchguardop = self.optimizer.patchguardop
                     for guard in extra_guards.extra_guards:
@@ -335,34 +341,29 @@ class OptUnroll(Optimization):
                             guard.rd_resume_position = patchguardop.rd_resume_position
                             guard.setdescr(compile.ResumeAtPositionDescr())
                         self.optimizer.send_extra_operation(guard)
-                except VirtualStatesCantMatch:
+                except VirtualStatesCantMatch as e:
+                    print(e.msg)
                     continue
-
+                # print("MERGE SUCCESS 0")
                 # When force_boxes == True, creating the virtual args can fail when
                 # components of the virtual state alias. If this occurs, we must
                 # recompute the virtual state as boxes will have been forced.
                 try:
                     args, virtuals = target_virtual_state.make_inputargs_and_virtuals(
                         args, self.optimizer, force_boxes=force_boxes)
-                except VirtualStatesCantMatch:
+                except VirtualStatesCantMatch as e:
+                    print(e.msg)
                     assert force_boxes
                     virtual_state = self.get_virtual_state(args)
                     continue
 
                 # Success! Cut the trace short
                 self.optimizer._newoperations = self.optimizer._newoperations[:idx]
-                short_preamble = target_token.short_preamble
-
-                if short_preamble:
-                    extra = self.inline_short_preamble(args + virtuals, args,
-                                        short_preamble, self.optimizer.patchguardop,
-                                        target_token, label_op)
-                else:
-                    extra = []
+                # print("MERGE SUCCESS 1")
                 self.optimizer.emit(ResOperation(rop.JUMP,
-                                            args=args + extra,
+                                            args=args_list,
                                             descr=target_token))
-                print("MERGE SUCCESS")
+                # print("MERGE SUCCESS 2")
                 return None # explicit because the return can be non-None
 
         return self.get_virtual_state(jump_op.getarglist())

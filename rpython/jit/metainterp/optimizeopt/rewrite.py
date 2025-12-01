@@ -710,6 +710,10 @@ class OptRewrite(Optimization):
     def optimize_GUARD_FUTURE_CONDITION(self, op):
         self.optimizer.notice_guard_future_condition(op)
 
+    def optimize_CONTROL_FLOW_POINT(self, op):
+        self.optimizer.notice_control_flow_point(op)
+        return self.emit(op)
+
     def _optimize_CALL_INT_PY_DIV(self, op):
         from rpython.jit.metainterp.optimizeopt.intutils import MININT
         def _replace_with_shift(self, op, arg1, shiftvar):

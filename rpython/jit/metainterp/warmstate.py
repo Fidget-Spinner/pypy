@@ -328,6 +328,9 @@ class WarmEnterState(object):
     def set_param_vec_cost(self, ivalue):
         self.vec_cost = ivalue
 
+    def set_param_check_instability(self, ivalue):
+        self.check_instability = ivalue
+
     def disable_noninlinable_function(self, greenkey):
         cell = self.JitCell.ensure_jit_cell_at_key(greenkey)
         cell.flags |= JC_DONT_TRACE_HERE

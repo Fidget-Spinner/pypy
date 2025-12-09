@@ -2372,15 +2372,15 @@ class MetaInterpGlobalData(object):
 
 # ____________________________________________________________
 
-MAX_INSTABILITY_HISTORY_LENGTH = 3
+MAX_INSTABILITY_HISTORY_LENGTH = 7
 MAX_INSTABILITY_RETRY_BACKOFF = {
     7: 2,
     6: 3,
     5: 2,
-    4: 3,
-    3: 311,
-    2: 307,
-    1: 293,
+    4: 5,
+    3: 7,
+    2: 11,
+    1: 13,
 }
 
 class MetaInterp(object):
@@ -2423,6 +2423,8 @@ class MetaInterp(object):
         self.guard_currently_seen = 0
 
     def check_if_guards_match_previous(self):
+        if self.jitdriver_sd.warmstate.check_instability == 0:
+            return True, 0
         data = self.staticdata
         matched = False
         # print("TRYING MATCH")

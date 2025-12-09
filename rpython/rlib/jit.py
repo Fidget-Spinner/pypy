@@ -602,6 +602,7 @@ PARAMETERS = {'threshold': 1039, # just above 1024, prime
               'vec': 0,
               'vec_all': 0,
               'vec_cost': 0,
+              'check_instability': 0,
               }
 unroll_parameters = unrolling_iterable(PARAMETERS.items())
 

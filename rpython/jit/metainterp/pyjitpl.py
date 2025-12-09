@@ -2374,13 +2374,13 @@ class MetaInterpGlobalData(object):
 
 MAX_INSTABILITY_HISTORY_LENGTH = 7
 MAX_INSTABILITY_RETRY_BACKOFF = {
-    7: 2,
-    6: 3,
-    5: 2,
-    4: 5,
-    3: 7,
-    2: 11,
-    1: 13,
+    7: 1,
+    6: 1,
+    5: 1,
+    4: 1,
+    3: 1,
+    2: 1,
+    1: 1,
 }
 
 class MetaInterp(object):

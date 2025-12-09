@@ -2215,6 +2215,10 @@ class MetaInterpStaticData(object):
 
         compile.make_and_attach_done_descrs([self, cpu])
 
+        self.guards_previously_seen = [0] * MAX_INSTABILITY_HISTORY_LENGTH
+        self.max_instability_retry = [MAX_INSTABILITY_HISTORY_LENGTH]
+
+
     def _freeze_(self):
         return True
 
@@ -2368,6 +2372,17 @@ class MetaInterpGlobalData(object):
 
 # ____________________________________________________________
 
+MAX_INSTABILITY_HISTORY_LENGTH = 3
+MAX_INSTABILITY_RETRY_BACKOFF = {
+    7: 2,
+    6: 3,
+    5: 2,
+    4: 3,
+    3: 311,
+    2: 307,
+    1: 293,
+}
+
 class MetaInterp(object):
     portal_call_depth = 0
     cancel_count = 0
@@ -2404,6 +2419,35 @@ class MetaInterp(object):
         # AssertionError)
         self.force_finish_trace = force_finish_trace
         self.trace_length_at_last_tco = -1
+
+        self.guard_currently_seen = 0
+
+    def check_if_guards_match_previous(self):
+        data = self.staticdata
+        matched = False
+        # print("TRYING MATCH")
+        for previously_seen in data.guards_previously_seen:
+            # print("PREV %d, CURR %d" % (previously_seen, self.guard_currently_seen))
+            if previously_seen == self.guard_currently_seen:
+                matched = True
+                break
+        # shift right all the guard history.
+        for i in range(MAX_INSTABILITY_HISTORY_LENGTH-1, 0, -1):
+            data.guards_previously_seen[i] = data.guards_previously_seen[i-1]
+        data.guards_previously_seen[0] = self.guard_currently_seen
+        self.guard_currently_seen = 0
+        if matched:
+            data.max_instability_retry[0] = MAX_INSTABILITY_HISTORY_LENGTH
+            # print("MATCHED")
+            return True, 0
+        if data.max_instability_retry[0] <= 0:           
+            data.max_instability_retry[0] = MAX_INSTABILITY_HISTORY_LENGTH
+            return True, 0
+        # print("FAILED MATCH")
+        new_threshold = MAX_INSTABILITY_RETRY_BACKOFF[data.max_instability_retry[0]]
+        data.max_instability_retry[0] = data.max_instability_retry[0] - 1
+        return False, new_threshold
+
 
     def retrace_needed(self, trace, exported_state):
         self.partial_trace = trace
@@ -2575,6 +2619,7 @@ class MetaInterp(object):
         self.staticdata.profiler.count_ops(opnum, Counters.GUARDS)
         # count
         #self.attach_debug_info(guard_op)
+        self.guard_currently_seen += 1
         return guard_op
 
     def capture_resumedata(self, resumepc, after_residual_call=False):
@@ -3150,6 +3195,12 @@ class MetaInterp(object):
         return cell.get_procedure_token()
 
     def compile_loop(self, original_boxes, live_arg_boxes, start, use_unroll):
+        from rpython.rlib.jit import PARAMETERS
+        match, new_threshold = self.check_if_guards_match_previous()
+        if not match:
+            self.jitdriver_sd.warmstate.set_param_threshold(new_threshold)
+            return None
+        self.jitdriver_sd.warmstate.set_param_threshold(PARAMETERS['threshold'])
         num_green_args = self.jitdriver_sd.num_green_args
         greenkey = original_boxes[:num_green_args]
         ptoken = self.get_procedure_token(greenkey)
@@ -3169,6 +3220,12 @@ class MetaInterp(object):
         return target_token
 
     def compile_retrace(self, original_boxes, live_arg_boxes, start):
+        from rpython.rlib.jit import PARAMETERS
+        match, new_threshold = self.check_if_guards_match_previous()
+        if not match:
+            self.jitdriver_sd.warmstate.set_param_trace_eagerness(new_threshold)
+            return None
+        self.jitdriver_sd.warmstate.set_param_threshold(PARAMETERS['trace_eagerness'])
         num_green_args = self.jitdriver_sd.num_green_args
         greenkey = original_boxes[:num_green_args]
         return compile.compile_retrace(
@@ -3177,6 +3234,12 @@ class MetaInterp(object):
             self.resumekey, self.exported_state)
 
     def compile_trace(self, live_arg_boxes, ptoken):
+        from rpython.rlib.jit import PARAMETERS
+        match, new_threshold = self.check_if_guards_match_previous()
+        if not match:
+            self.jitdriver_sd.warmstate.set_param_threshold(new_threshold)
+            return None
+        self.jitdriver_sd.warmstate.set_param_threshold(PARAMETERS['threshold'])
         num_green_args = self.jitdriver_sd.num_green_args
         cut_at = self.history.get_trace_position()
         self.potential_retrace_position = cut_at
@@ -3190,6 +3253,12 @@ class MetaInterp(object):
         self.raise_if_successful(live_arg_boxes, target_token)
 
     def compile_done_with_this_frame(self, exitbox):
+        from rpython.rlib.jit import PARAMETERS
+        match, new_threshold = self.check_if_guards_match_previous()
+        if not match:
+            self.jitdriver_sd.warmstate.set_param_threshold(new_threshold)
+            return None
+        self.jitdriver_sd.warmstate.set_param_threshold(PARAMETERS['threshold'])
         self.store_token_in_vable()
         sd = self.staticdata
         result_type = self.jitdriver_sd.result_type
